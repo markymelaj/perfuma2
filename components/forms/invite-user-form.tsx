@@ -13,10 +13,10 @@ import { FormMessage } from '@/components/shared/form-message';
 
 export function InviteUserForm({
   currentRole,
-  currentAdminId,
+  currentActorId,
 }: {
   currentRole: AppRole;
-  currentAdminId: string;
+  currentActorId: string;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -25,11 +25,12 @@ export function InviteUserForm({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setError(null);
     setSuccess(null);
     setLoading(true);
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const payload = {
       email: String(formData.get('email') ?? ''),
       password: String(formData.get('password') ?? ''),
@@ -49,11 +50,10 @@ export function InviteUserForm({
       const response = await authFetch('/api/admin/users', {
         method: 'POST',
         headers: {
-          'x-admin-id': currentAdminId,
+          'x-actor-id': currentActorId,
         },
         body: JSON.stringify(parsed.data),
       });
-
       const result = await readJsonSafe(response);
 
       if (!response.ok) {
@@ -61,7 +61,7 @@ export function InviteUserForm({
       }
 
       setSuccess('Usuario creado correctamente.');
-      event.currentTarget.reset();
+      form.reset();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear el usuario');
@@ -77,23 +77,19 @@ export function InviteUserForm({
           <Label htmlFor="display_name">Nombre</Label>
           <Input id="display_name" name="display_name" required />
         </div>
-
         <div className="space-y-2">
           <Label htmlFor="phone">Teléfono</Label>
-          <Input id="phone" name="phone" />
+          <Input id="phone" name="phone" inputMode="tel" />
         </div>
-
         <div className="space-y-2">
           <Label htmlFor="email">Correo</Label>
-          <Input id="email" name="email" type="email" required />
+          <Input id="email" name="email" type="email" autoComplete="email" required />
         </div>
-
         <div className="space-y-2">
           <Label htmlFor="password">Contraseña temporal</Label>
-          <Input id="password" name="password" type="password" required />
+          <Input id="password" name="password" type="password" autoComplete="new-password" required />
         </div>
-
-        <div className="space-y-2">
+        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="role">Rol</Label>
           <Select defaultValue="seller" id="role" name="role">
             <option value="seller">seller</option>
@@ -103,11 +99,8 @@ export function InviteUserForm({
           </Select>
         </div>
       </div>
-
       <FormMessage error={error} success={success} />
-      <Button disabled={loading} type="submit">
-        {loading ? 'Creando...' : 'Crear usuario'}
-      </Button>
+      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Creando...' : 'Crear usuario'}</Button>
     </form>
   );
 }

@@ -12,7 +12,15 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function RecordSaleForm({ consignments, items }: { consignments: Consignment[]; items: ConsignmentItem[] }) {
+export function RecordSaleForm({
+  currentActorId,
+  consignments,
+  items,
+}: {
+  currentActorId: string;
+  consignments: Consignment[];
+  items: ConsignmentItem[];
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,9 +28,10 @@ export function RecordSaleForm({ consignments, items }: { consignments: Consignm
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setError(null);
     setSuccess(null);
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const payload = {
       consignment_id: String(formData.get('consignment_id') ?? ''),
       consignment_item_id: String(formData.get('consignment_item_id') ?? ''),
@@ -41,6 +50,9 @@ export function RecordSaleForm({ consignments, items }: { consignments: Consignm
     try {
       const response = await authFetch('/api/sales', {
         method: 'POST',
+        headers: {
+          'x-actor-id': currentActorId,
+        },
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
@@ -50,7 +62,7 @@ export function RecordSaleForm({ consignments, items }: { consignments: Consignm
       }
 
       setSuccess('Venta registrada.');
-      event.currentTarget.reset();
+      form.reset();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar la venta');
@@ -62,14 +74,14 @@ export function RecordSaleForm({ consignments, items }: { consignments: Consignm
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
+        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="consignment_id">Consignación</Label>
           <Select id="consignment_id" name="consignment_id" required defaultValue="">
             <option value="" disabled>Selecciona</option>
             {consignments.map((consignment) => <option key={consignment.id} value={consignment.id}>{consignment.id.slice(0, 8)} · {consignment.status}</option>)}
           </Select>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="consignment_item_id">Ítem</Label>
           <Select id="consignment_item_id" name="consignment_item_id" required defaultValue="">
             <option value="" disabled>Selecciona</option>
@@ -94,7 +106,7 @@ export function RecordSaleForm({ consignments, items }: { consignments: Consignm
         </div>
       </div>
       <FormMessage error={error} success={success} />
-      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Registrar venta'}</Button>
+      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Guardando...' : 'Registrar venta'}</Button>
     </form>
   );
 }

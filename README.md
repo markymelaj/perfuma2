@@ -15,7 +15,7 @@ Proyecto interno de venta a consignación con Next.js + Supabase + Vercel.
 - `package-lock.json` incluido
 - `.npmrc` incluido para instalación más estable
 
-## Este paquete es para proyecto nuevo
+## Este paquete sirve para reemplazar el proyecto actual en GitHub y desplegar en Vercel
 Para un proyecto Supabase nuevo, ejecuta solo:
 1. `supabase/schema.sql`
 2. crea tu primer usuario en Supabase Auth
@@ -47,3 +47,12 @@ Copia `.env.example` a `.env.local` en local, y en Vercel crea estas variables:
 
 ## Nota
 Este paquete fue probado localmente con `npm run build` antes de empaquetarse.
+
+
+## Mejoras incluidas en esta versión
+- Flujo de owner y seller más cómodo en móvil
+- Navegación móvil inferior
+- Tablas adaptadas a cards en pantallas pequeñas
+- Formularios principales con manejo correcto de reset y feedback
+- Rutas internas unificadas para no repetir el problema de `No autorizado` en acciones admin
+- Manifest básico para instalar como app web (PWA ligera)

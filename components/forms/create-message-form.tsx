@@ -11,7 +11,13 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateMessageForm({ sellers }: { sellers?: Profile[] }) {
+export function CreateMessageForm({
+  currentActorId,
+  sellers,
+}: {
+  currentActorId: string;
+  sellers?: Profile[];
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -19,10 +25,11 @@ export function CreateMessageForm({ sellers }: { sellers?: Profile[] }) {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setError(null);
     setSuccess(null);
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const payload = {
       seller_id: String(formData.get('seller_id') ?? ''),
       body: String(formData.get('body') ?? ''),
@@ -38,6 +45,9 @@ export function CreateMessageForm({ sellers }: { sellers?: Profile[] }) {
     try {
       const response = await authFetch('/api/messages', {
         method: 'POST',
+        headers: {
+          'x-actor-id': currentActorId,
+        },
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
@@ -47,7 +57,7 @@ export function CreateMessageForm({ sellers }: { sellers?: Profile[] }) {
       }
 
       setSuccess('Mensaje enviado.');
-      event.currentTarget.reset();
+      form.reset();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo enviar el mensaje');
@@ -72,7 +82,7 @@ export function CreateMessageForm({ sellers }: { sellers?: Profile[] }) {
         <Textarea id="body" name="body" required />
       </div>
       <FormMessage error={error} success={success} />
-      <Button disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar mensaje'}</Button>
+      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar mensaje'}</Button>
     </form>
   );
 }

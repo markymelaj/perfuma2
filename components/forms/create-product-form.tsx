@@ -12,7 +12,13 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateProductForm({ suppliers }: { suppliers: Supplier[] }) {
+export function CreateProductForm({
+  suppliers,
+  currentActorId,
+}: {
+  suppliers: Supplier[];
+  currentActorId: string;
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,10 +26,11 @@ export function CreateProductForm({ suppliers }: { suppliers: Supplier[] }) {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setError(null);
     setSuccess(null);
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const payload = {
       supplier_id: String(formData.get('supplier_id') ?? ''),
       sku: String(formData.get('sku') ?? ''),
@@ -42,6 +49,9 @@ export function CreateProductForm({ suppliers }: { suppliers: Supplier[] }) {
     try {
       const response = await authFetch('/api/products', {
         method: 'POST',
+        headers: {
+          'x-actor-id': currentActorId,
+        },
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
@@ -51,7 +61,7 @@ export function CreateProductForm({ suppliers }: { suppliers: Supplier[] }) {
       }
 
       setSuccess('Producto creado.');
-      event.currentTarget.reset();
+      form.reset();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar');
@@ -86,13 +96,13 @@ export function CreateProductForm({ suppliers }: { suppliers: Supplier[] }) {
           <Label htmlFor="description">Descripción</Label>
           <Textarea id="description" name="description" />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="default_sale_price">Precio base</Label>
           <Input id="default_sale_price" name="default_sale_price" type="number" min="0" step="1" required />
         </div>
       </div>
       <FormMessage error={error} success={success} />
-      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Guardar producto'}</Button>
+      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Guardando...' : 'Guardar producto'}</Button>
     </form>
   );
 }

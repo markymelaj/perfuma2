@@ -28,53 +28,75 @@ export default async function OwnerPage() {
       row.role,
       row.is_active ? 'Activo' : 'Inactivo',
       <div key={row.id} className="flex flex-wrap gap-2">
-        <ToggleUserStatusButton userId={row.id} isActive={row.is_active} />
-        <ResetAccessButton userId={row.id} />
+        <ToggleUserStatusButton currentActorId={profile.id} userId={row.id} isActive={row.is_active} />
+        <ResetAccessButton currentActorId={profile.id} userId={row.id} />
       </div>,
     ]);
 
   return (
     <div className="space-y-8">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 grid-cols-2 xl:grid-cols-4">
         <KpiCard title="Vendedores" value={String(metrics.sellers)} />
         <KpiCard title="Productos" value={String(metrics.products)} />
         <KpiCard title="Consignaciones abiertas" value={String(metrics.openConsignments)} />
         <KpiCard title="Pendiente por rendir" value={formatCurrency(metrics.pendiente)} />
       </section>
 
+      <section className="-mx-1 overflow-x-auto pb-1 md:hidden">
+        <div className="flex gap-2 px-1">
+          {[
+            ['#usuarios', 'Usuarios'],
+            ['#proveedores', 'Proveedores'],
+            ['#productos', 'Productos'],
+            ['#consignar', 'Consignar'],
+            ['#caja', 'Caja'],
+            ['#mensajes', 'Mensajes'],
+          ].map(([href, label]) => (
+            <a
+              key={href}
+              href={href}
+              className="whitespace-nowrap rounded-full border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm text-zinc-200"
+            >
+              {label}
+            </a>
+          ))}
+        </div>
+      </section>
+
       <section className="grid gap-6 xl:grid-cols-2">
-        <Card>
+        <Card id="usuarios">
           <h2 className="mb-4 text-xl font-semibold">Usuarios</h2>
-          <InviteUserForm currentRole={profile.role} currentAdminId={profile.id} />
+          <InviteUserForm currentRole={profile.role} currentActorId={profile.id} />
         </Card>
 
-        <Card>
+        <Card id="proveedores">
           <h2 className="mb-4 text-xl font-semibold">Proveedores</h2>
-          <CreateSupplierForm currentAdminId={profile.id} />
+          <CreateSupplierForm currentActorId={profile.id} />
         </Card>
 
-        <Card>
+        <Card id="productos">
           <h2 className="mb-4 text-xl font-semibold">Productos</h2>
-          <CreateProductForm suppliers={suppliers} />
+          <CreateProductForm suppliers={suppliers} currentActorId={profile.id} />
         </Card>
 
-        <Card>
+        <Card id="consignar">
           <h2 className="mb-4 text-xl font-semibold">Asignar consignación</h2>
           <CreateConsignmentForm
+            currentActorId={profile.id}
             sellers={profiles.filter((row) => row.role === 'seller' && row.is_active)}
             suppliers={suppliers}
             products={products}
           />
         </Card>
 
-        <Card>
+        <Card id="caja">
           <h2 className="mb-4 text-xl font-semibold">Rendición manual</h2>
-          <CreateReconciliationForm consignments={consignments} items={items} />
+          <CreateReconciliationForm currentActorId={profile.id} consignments={consignments} items={items} />
         </Card>
 
-        <Card>
+        <Card id="mensajes">
           <h2 className="mb-4 text-xl font-semibold">Mensaje a vendedor</h2>
-          <CreateMessageForm sellers={profiles.filter((row) => row.role === 'seller')} />
+          <CreateMessageForm currentActorId={profile.id} sellers={profiles.filter((row) => row.role === 'seller')} />
         </Card>
       </section>
 
@@ -98,7 +120,6 @@ export default async function OwnerPage() {
             ])}
           />
         </Card>
-
         <Card>
           <h2 className="mb-4 text-xl font-semibold">Mensajes recientes</h2>
           <DataTable

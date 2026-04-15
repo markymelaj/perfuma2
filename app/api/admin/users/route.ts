@@ -1,50 +1,11 @@
 import { NextResponse } from 'next/server';
 import { createUserSchema } from '@/lib/validators';
-import { createAdminClient } from '@/lib/supabase/admin';
-import type { AppRole, Profile } from '@/lib/types';
-
-async function getAdminContext(request: Request) {
-  const adminId = request.headers.get('x-admin-id');
-  const admin = createAdminClient();
-
-  if (!adminId) {
-    return {
-      error: NextResponse.json({ error: 'No autorizado' }, { status: 401 }),
-    };
-  }
-
-  const profileResult = await admin
-    .from('profiles')
-    .select('*')
-    .eq('id', adminId)
-    .maybeSingle();
-
-  const profile = (profileResult.data as Profile | null) ?? null;
-
-  if (profileResult.error || !profile) {
-    return {
-      error: NextResponse.json({ error: 'No autorizado' }, { status: 401 }),
-    };
-  }
-
-  if (!profile.is_active) {
-    return {
-      error: NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 }),
-    };
-  }
-
-  if (!['super_admin', 'owner'].includes(profile.role)) {
-    return {
-      error: NextResponse.json({ error: 'No autorizado' }, { status: 403 }),
-    };
-  }
-
-  return { profile, admin };
-}
+import { requireApiAdmin } from '@/lib/auth/api-guards';
+import type { AppRole } from '@/lib/types';
 
 export async function POST(request: Request) {
-  const ctx = await getAdminContext(request);
-  if ('error' in ctx) return ctx.error;
+  const auth = await requireApiAdmin(request);
+  if ('response' in auth) return auth.response;
 
   const json = await request.json();
   const parsed = createUserSchema.safeParse(json);
@@ -56,14 +17,14 @@ export async function POST(request: Request) {
     );
   }
 
-  if (ctx.profile.role !== 'super_admin' && parsed.data.role !== 'seller') {
+  if (auth.profile.role !== 'super_admin' && parsed.data.role !== 'seller') {
     return NextResponse.json(
       { error: 'Solo super_admin puede crear owners' },
       { status: 403 },
     );
   }
 
-  const created = await ctx.admin.auth.admin.createUser({
+  const created = await auth.admin.auth.admin.createUser({
     email: parsed.data.email,
     password: parsed.data.password,
     email_confirm: true,
@@ -77,7 +38,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { error } = await ctx.admin
+  const { error } = await auth.admin
     .from('profiles')
     .update({
       display_name: parsed.data.display_name,
@@ -96,28 +57,23 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const ctx = await getAdminContext(request);
-  if ('error' in ctx) return ctx.error;
+  const auth = await requireApiAdmin(request);
+  if ('response' in auth) return auth.response;
 
   const { action, userId, isActive, password } = await request.json();
 
   if (action === 'toggle-status') {
-    const target = await ctx.admin
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle();
-
+    const target = await auth.admin.from('profiles').select('role').eq('id', userId).maybeSingle();
     const targetRole = (target.data?.role ?? 'seller') as AppRole;
 
-    if (ctx.profile.role !== 'super_admin' && targetRole !== 'seller') {
+    if (auth.profile.role !== 'super_admin' && targetRole !== 'seller') {
       return NextResponse.json(
         { error: 'Solo super_admin puede modificar owners' },
         { status: 403 },
       );
     }
 
-    const { error } = await ctx.admin
+    const { error } = await auth.admin
       .from('profiles')
       .update({ is_active: Boolean(isActive) })
       .eq('id', userId);
@@ -137,22 +93,17 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const target = await ctx.admin
-      .from('profiles')
-      .select('role')
-      .eq('id', userId)
-      .maybeSingle();
-
+    const target = await auth.admin.from('profiles').select('role').eq('id', userId).maybeSingle();
     const targetRole = (target.data?.role ?? 'seller') as AppRole;
 
-    if (ctx.profile.role !== 'super_admin' && targetRole !== 'seller') {
+    if (auth.profile.role !== 'super_admin' && targetRole !== 'seller') {
       return NextResponse.json(
         { error: 'Solo super_admin puede resetear owners' },
         { status: 403 },
       );
     }
 
-    const updated = await ctx.admin.auth.admin.updateUserById(userId, {
+    const updated = await auth.admin.auth.admin.updateUserById(userId, {
       password,
     });
 

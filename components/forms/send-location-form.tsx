@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function SendLocationForm() {
+export function SendLocationForm({ currentActorId }: { currentActorId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -16,6 +16,7 @@ export function SendLocationForm() {
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setError(null);
     setSuccess(null);
 
@@ -24,7 +25,7 @@ export function SendLocationForm() {
       return;
     }
 
-    const note = String(new FormData(event.currentTarget).get('note') ?? '');
+    const note = String(new FormData(form).get('note') ?? '');
     setLoading(true);
 
     navigator.geolocation.getCurrentPosition(
@@ -32,6 +33,9 @@ export function SendLocationForm() {
         try {
           const response = await authFetch('/api/location', {
             method: 'POST',
+            headers: {
+              'x-actor-id': currentActorId,
+            },
             body: JSON.stringify({
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
@@ -45,7 +49,7 @@ export function SendLocationForm() {
           }
 
           setSuccess('Ubicación enviada.');
-          event.currentTarget.reset();
+          form.reset();
           router.refresh();
         } catch (err) {
           setError(err instanceof Error ? err.message : 'No se pudo guardar la ubicación');
@@ -57,6 +61,7 @@ export function SendLocationForm() {
         setLoading(false);
         setError('No se pudo obtener tu ubicación.');
       },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }
 
@@ -67,7 +72,7 @@ export function SendLocationForm() {
         <Textarea id="note" name="note" placeholder="Punto de venta, referencia, etc." />
       </div>
       <FormMessage error={error} success={success} />
-      <Button disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar ubicación actual'}</Button>
+      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar ubicación actual'}</Button>
     </form>
   );
 }

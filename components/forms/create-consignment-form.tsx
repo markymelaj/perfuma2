@@ -12,7 +12,17 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateConsignmentForm({ sellers, suppliers, products }: { sellers: Profile[]; suppliers: Supplier[]; products: Product[] }) {
+export function CreateConsignmentForm({
+  currentActorId,
+  sellers,
+  suppliers,
+  products,
+}: {
+  currentActorId: string;
+  sellers: Profile[];
+  suppliers: Supplier[];
+  products: Product[];
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,9 +30,10 @@ export function CreateConsignmentForm({ sellers, suppliers, products }: { seller
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setError(null);
     setSuccess(null);
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const payload = {
       seller_id: String(formData.get('seller_id') ?? ''),
       supplier_id: String(formData.get('supplier_id') ?? ''),
@@ -42,6 +53,9 @@ export function CreateConsignmentForm({ sellers, suppliers, products }: { seller
     try {
       const response = await authFetch('/api/consignments', {
         method: 'POST',
+        headers: {
+          'x-actor-id': currentActorId,
+        },
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
@@ -51,7 +65,7 @@ export function CreateConsignmentForm({ sellers, suppliers, products }: { seller
       }
 
       setSuccess('Consignación creada.');
-      event.currentTarget.reset();
+      form.reset();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo crear la consignación');
@@ -98,7 +112,7 @@ export function CreateConsignmentForm({ sellers, suppliers, products }: { seller
         </div>
       </div>
       <FormMessage error={error} success={success} />
-      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Crear consignación'}</Button>
+      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Guardando...' : 'Crear consignación'}</Button>
     </form>
   );
 }

@@ -12,7 +12,15 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateReconciliationForm({ consignments, items }: { consignments: Consignment[]; items: ConsignmentItem[] }) {
+export function CreateReconciliationForm({
+  currentActorId,
+  consignments,
+  items,
+}: {
+  currentActorId: string;
+  consignments: Consignment[];
+  items: ConsignmentItem[];
+}) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,10 +28,11 @@ export function CreateReconciliationForm({ consignments, items }: { consignments
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setError(null);
     setSuccess(null);
 
-    const formData = new FormData(event.currentTarget);
+    const formData = new FormData(form);
     const payload = {
       consignment_id: String(formData.get('consignment_id') ?? ''),
       type: String(formData.get('type') ?? 'partial'),
@@ -44,6 +53,9 @@ export function CreateReconciliationForm({ consignments, items }: { consignments
     try {
       const response = await authFetch('/api/reconciliations', {
         method: 'POST',
+        headers: {
+          'x-actor-id': currentActorId,
+        },
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
@@ -53,7 +65,7 @@ export function CreateReconciliationForm({ consignments, items }: { consignments
       }
 
       setSuccess('Rendición registrada.');
-      event.currentTarget.reset();
+      form.reset();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar la rendición');
@@ -83,7 +95,7 @@ export function CreateReconciliationForm({ consignments, items }: { consignments
           <Label htmlFor="cash_received">Efectivo</Label>
           <Input id="cash_received" name="cash_received" type="number" min="0" defaultValue="0" />
         </div>
-        <div className="space-y-2">
+        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="transfer_received">Transferencia</Label>
           <Input id="transfer_received" name="transfer_received" type="number" min="0" defaultValue="0" />
         </div>
@@ -104,7 +116,7 @@ export function CreateReconciliationForm({ consignments, items }: { consignments
         </div>
       </div>
       <FormMessage error={error} success={success} />
-      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Registrar rendición'}</Button>
+      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Guardando...' : 'Registrar rendición'}</Button>
     </form>
   );
 }

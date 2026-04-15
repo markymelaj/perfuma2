@@ -11,7 +11,13 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function InviteUserForm({ currentRole }: { currentRole: AppRole }) {
+export function InviteUserForm({
+  currentRole,
+  currentAdminId,
+}: {
+  currentRole: AppRole;
+  currentAdminId: string;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -42,8 +48,12 @@ export function InviteUserForm({ currentRole }: { currentRole: AppRole }) {
     try {
       const response = await authFetch('/api/admin/users', {
         method: 'POST',
+        headers: {
+          'x-admin-id': currentAdminId,
+        },
         body: JSON.stringify(parsed.data),
       });
+
       const result = await readJsonSafe(response);
 
       if (!response.ok) {
@@ -67,18 +77,22 @@ export function InviteUserForm({ currentRole }: { currentRole: AppRole }) {
           <Label htmlFor="display_name">Nombre</Label>
           <Input id="display_name" name="display_name" required />
         </div>
+
         <div className="space-y-2">
           <Label htmlFor="phone">Teléfono</Label>
           <Input id="phone" name="phone" />
         </div>
+
         <div className="space-y-2">
           <Label htmlFor="email">Correo</Label>
           <Input id="email" name="email" type="email" required />
         </div>
+
         <div className="space-y-2">
           <Label htmlFor="password">Contraseña temporal</Label>
           <Input id="password" name="password" type="password" required />
         </div>
+
         <div className="space-y-2">
           <Label htmlFor="role">Rol</Label>
           <Select defaultValue="seller" id="role" name="role">
@@ -89,8 +103,11 @@ export function InviteUserForm({ currentRole }: { currentRole: AppRole }) {
           </Select>
         </div>
       </div>
+
       <FormMessage error={error} success={success} />
-      <Button disabled={loading} type="submit">{loading ? 'Creando...' : 'Crear usuario'}</Button>
+      <Button disabled={loading} type="submit">
+        {loading ? 'Creando...' : 'Crear usuario'}
+      </Button>
     </form>
   );
 }

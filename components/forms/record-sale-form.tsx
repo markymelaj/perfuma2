@@ -17,49 +17,35 @@ export function RecordSaleForm({ consignments, items }: { consignments: Consignm
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [selectedConsignmentId, setSelectedConsignmentId] = useState('');
-
-  const filteredItems = useMemo(
-    () => items.filter((item) => !selectedConsignmentId || item.consignment_id === selectedConsignmentId),
-    [items, selectedConsignmentId],
-  );
+  const [consignmentId, setConsignmentId] = useState(consignments[0]?.id ?? '');
+  const visibleItems = useMemo(() => items.filter((item) => !consignmentId || item.consignment_id === consignmentId), [items, consignmentId]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     setError(null);
     setSuccess(null);
-
-    const formData = new FormData(form);
+    const data = new FormData(form);
     const payload = {
-      consignment_id: String(formData.get('consignment_id') ?? ''),
-      consignment_item_id: String(formData.get('consignment_item_id') ?? ''),
-      quantity: String(formData.get('quantity') ?? '0'),
-      payment_method: String(formData.get('payment_method') ?? 'cash'),
-      notes: String(formData.get('notes') ?? ''),
+      consignment_id: String(data.get('consignment_id') ?? ''),
+      consignment_item_id: String(data.get('consignment_item_id') ?? ''),
+      quantity: String(data.get('quantity') ?? '0'),
+      payment_method: String(data.get('payment_method') ?? 'cash'),
+      notes: String(data.get('notes') ?? ''),
     };
-
     const parsed = saleSchema.safeParse(payload);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? 'Datos inválidos');
       return;
     }
-
     setLoading(true);
     try {
-      const response = await authFetch('/api/sales', {
-        method: 'POST',
-        body: JSON.stringify(parsed.data),
-      });
+      const response = await authFetch('/api/sales', { method: 'POST', body: JSON.stringify(parsed.data) });
       const result = await readJsonSafe(response);
-
-      if (!response.ok) {
-        throw new Error(String(result.error ?? 'No se pudo registrar la venta'));
-      }
-
+      if (!response.ok) throw new Error(String(result.error ?? 'No se pudo registrar la venta'));
       setSuccess('Venta registrada.');
       form.reset();
-      setSelectedConsignmentId('');
+      if (consignments[0]?.id) setConsignmentId(consignments[0].id);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar la venta');
@@ -71,36 +57,11 @@ export function RecordSaleForm({ consignments, items }: { consignments: Consignm
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="consignment_id">Cuenta de stock</Label>
-          <Select id="consignment_id" name="consignment_id" required defaultValue="" onChange={(event) => setSelectedConsignmentId(event.target.value)}>
-            <option value="" disabled>Selecciona</option>
-            {consignments.map((consignment) => <option key={consignment.id} value={consignment.id}>{consignment.id.slice(0, 8)} · {consignment.status}</option>)}
-          </Select>
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="consignment_item_id">Producto</Label>
-          <Select id="consignment_item_id" name="consignment_item_id" required defaultValue="">
-            <option value="" disabled>Selecciona</option>
-            {filteredItems.map((item) => <option key={item.id} value={item.id}>{item.products?.name ?? item.product_id}</option>)}
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="quantity">Cantidad vendida</Label>
-          <Input id="quantity" name="quantity" type="number" min="1" required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="payment_method">Pago</Label>
-          <Select id="payment_method" name="payment_method" defaultValue="cash">
-            <option value="cash">Efectivo</option>
-            <option value="transfer">Transferencia</option>
-            <option value="mixed">Mixto</option>
-          </Select>
-        </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="notes">Notas</Label>
-          <Textarea id="notes" name="notes" />
-        </div>
+        <div className="space-y-2"><Label htmlFor="consignment_id">Cuenta de stock</Label><Select id="consignment_id" name="consignment_id" required value={consignmentId} onChange={(e)=>setConsignmentId(e.target.value)}><option value="" disabled>Selecciona</option>{consignments.map((c)=><option key={c.id} value={c.id}>{c.id.slice(0,8)} · {c.status}</option>)}</Select></div>
+        <div className="space-y-2"><Label htmlFor="consignment_item_id">Producto</Label><Select id="consignment_item_id" name="consignment_item_id" required defaultValue=""><option value="" disabled>Selecciona</option>{visibleItems.map((item)=><option key={item.id} value={item.id}>{item.products?.name ?? item.product_id}</option>)}</Select></div>
+        <div className="space-y-2"><Label htmlFor="quantity">Cantidad</Label><Input id="quantity" name="quantity" type="number" min="1" required /></div>
+        <div className="space-y-2"><Label htmlFor="payment_method">Pago</Label><Select id="payment_method" name="payment_method" defaultValue="cash"><option value="cash">Efectivo</option><option value="transfer">Transferencia</option><option value="mixed">Mixto</option></Select></div>
+        <div className="space-y-2 md:col-span-2"><Label htmlFor="notes">Notas</Label><Textarea id="notes" name="notes" /></div>
       </div>
       <FormMessage error={error} success={success} />
       <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Registrar venta'}</Button>

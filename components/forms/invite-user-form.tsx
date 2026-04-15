@@ -11,13 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function InviteUserForm({
-  currentRole,
-  currentAdminId,
-}: {
-  currentRole: AppRole;
-  currentAdminId: string;
-}) {
+export function InviteUserForm({ currentRole }: { currentRole: AppRole }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -26,14 +20,13 @@ export function InviteUserForm({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
-
     setError(null);
     setSuccess(null);
     setLoading(true);
 
     const formData = new FormData(form);
     const payload = {
-      username: String(formData.get('username') ?? ''),
+      email: String(formData.get('email') ?? ''),
       password: String(formData.get('password') ?? ''),
       display_name: String(formData.get('display_name') ?? ''),
       phone: String(formData.get('phone') ?? ''),
@@ -50,17 +43,10 @@ export function InviteUserForm({
     try {
       const response = await authFetch('/api/admin/users', {
         method: 'POST',
-        headers: {
-          'x-admin-id': currentAdminId,
-        },
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
-
-      if (!response.ok) {
-        throw new Error(String(result.error ?? 'No se pudo crear el usuario'));
-      }
-
+      if (!response.ok) throw new Error(String(result.error ?? 'No se pudo crear el usuario'));
       setSuccess('Usuario creado correctamente.');
       form.reset();
       router.refresh();
@@ -74,31 +60,11 @@ export function InviteUserForm({
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="display_name">Nombre</Label>
-          <Input id="display_name" name="display_name" required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="username">Usuario</Label>
-          <Input id="username" name="username" required autoCapitalize="none" autoCorrect="off" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="phone">Teléfono</Label>
-          <Input id="phone" name="phone" />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="password">Contraseña temporal</Label>
-          <Input id="password" name="password" type="password" required />
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="role">Rol</Label>
-          <Select defaultValue="seller" id="role" name="role">
-            <option value="seller">seller</option>
-            <option value="owner" disabled={currentRole !== 'super_admin'}>
-              owner
-            </option>
-          </Select>
-        </div>
+        <div className="space-y-2"><Label htmlFor="display_name">Nombre</Label><Input id="display_name" name="display_name" required /></div>
+        <div className="space-y-2"><Label htmlFor="phone">Teléfono</Label><Input id="phone" name="phone" /></div>
+        <div className="space-y-2"><Label htmlFor="email">Correo</Label><Input id="email" name="email" type="email" required /></div>
+        <div className="space-y-2"><Label htmlFor="password">Contraseña temporal</Label><Input id="password" name="password" type="password" required /></div>
+        <div className="space-y-2"><Label htmlFor="role">Rol</Label><Select defaultValue="seller" id="role" name="role"><option value="seller">seller</option><option value="owner" disabled={currentRole !== 'super_admin'}>owner</option></Select></div>
       </div>
       <FormMessage error={error} success={success} />
       <Button disabled={loading} type="submit">{loading ? 'Creando...' : 'Crear usuario'}</Button>

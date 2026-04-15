@@ -11,7 +11,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateMessageForm({ sellers, currentAdminId }: { sellers?: Profile[]; currentAdminId?: string }) {
+export function CreateMessageForm({ sellers, defaultSellerId }: { sellers?: Profile[]; defaultSellerId?: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,35 +22,18 @@ export function CreateMessageForm({ sellers, currentAdminId }: { sellers?: Profi
     const form = event.currentTarget;
     setError(null);
     setSuccess(null);
-
-    const formData = new FormData(form);
-    const payload = {
-      seller_id: String(formData.get('seller_id') ?? ''),
-      body: String(formData.get('body') ?? ''),
-    };
-
+    const data = new FormData(form);
+    const payload = { seller_id: String(data.get('seller_id') ?? ''), body: String(data.get('body') ?? '') };
     const parsed = messageSchema.safeParse(payload);
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? 'Datos inválidos');
       return;
     }
-
     setLoading(true);
     try {
-      const headers: Record<string, string> = {};
-      if (currentAdminId) headers['x-admin-id'] = currentAdminId;
-
-      const response = await authFetch('/api/messages', {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(parsed.data),
-      });
+      const response = await authFetch('/api/messages', { method: 'POST', body: JSON.stringify(parsed.data) });
       const result = await readJsonSafe(response);
-
-      if (!response.ok) {
-        throw new Error(String(result.error ?? 'No se pudo enviar el mensaje'));
-      }
-
+      if (!response.ok) throw new Error(String(result.error ?? 'No se pudo enviar el mensaje'));
       setSuccess('Mensaje enviado.');
       form.reset();
       router.refresh();
@@ -63,19 +46,8 @@ export function CreateMessageForm({ sellers, currentAdminId }: { sellers?: Profi
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      {sellers ? (
-        <div className="space-y-2">
-          <Label htmlFor="seller_id">Vendedor</Label>
-          <Select id="seller_id" name="seller_id" defaultValue="" required>
-            <option value="" disabled>Selecciona</option>
-            {sellers.map((seller) => <option key={seller.id} value={seller.id}>{seller.display_name ?? seller.username ?? seller.email}</option>)}
-          </Select>
-        </div>
-      ) : null}
-      <div className="space-y-2">
-        <Label htmlFor="body">Mensaje</Label>
-        <Textarea id="body" name="body" required />
-      </div>
+      {sellers ? <div className="space-y-2"><Label htmlFor="seller_id">Vendedor</Label><Select id="seller_id" name="seller_id" defaultValue={defaultSellerId ?? ''} required><option value="" disabled>Selecciona</option>{sellers.map((s)=><option key={s.id} value={s.id}>{s.display_name ?? s.email}</option>)}</Select></div> : null}
+      <div className="space-y-2"><Label htmlFor="body">Mensaje</Label><Textarea id="body" name="body" required /></div>
       <FormMessage error={error} success={success} />
       <Button disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar mensaje'}</Button>
     </form>

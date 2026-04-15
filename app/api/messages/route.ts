@@ -1,20 +1,12 @@
 import { NextResponse } from 'next/server';
 import { messageSchema } from '@/lib/validators';
 import { requireApiProfile } from '@/lib/auth/api-guards';
-import { getHeaderAdminContext } from '@/lib/auth/admin-header-context';
 import { isAdminRole } from '@/lib/auth/guards';
 import type { Profile } from '@/lib/types';
 
-async function getContext(request: Request) {
-  if (request.headers.get('x-admin-id')) {
-    return getHeaderAdminContext(request);
-  }
-  return requireApiProfile(request);
-}
-
 export async function POST(request: Request) {
-  const auth = await getContext(request);
-  if ('response' in auth || 'error' in auth) return 'response' in auth ? auth.response : auth.error;
+  const auth = await requireApiProfile(request);
+  if ('response' in auth) return auth.response;
 
   const json = await request.json();
   const parsed = messageSchema.safeParse(json);
@@ -39,20 +31,12 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle();
 
-    if (!owner.data) {
-      return NextResponse.json({ error: 'No hay dueño activo disponible' }, { status: 400 });
-    }
-
+    if (!owner.data) return NextResponse.json({ error: 'No hay dueño activo disponible' }, { status: 400 });
     ownerId = (owner.data as Profile).id;
   }
 
   const { error } = await auth.admin.from('internal_messages').insert([
-    {
-      owner_id: ownerId,
-      seller_id: sellerId,
-      sender_id: auth.profile.id,
-      body: parsed.data.body,
-    },
+    { owner_id: ownerId, seller_id: sellerId, sender_id: auth.profile.id, body: parsed.data.body },
   ]);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

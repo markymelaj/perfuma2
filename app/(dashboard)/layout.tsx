@@ -10,19 +10,19 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const profile = await requireProfile();
 
   const items = isAdminRole(profile.role)
-    ? [{ href: '/owner', label: 'Admin' }]
-    : [{ href: '/seller', label: 'Mi panel' }];
+    ? [{ href: '/owner', label: 'Panel admin' }]
+    : [{ href: '/seller', label: 'Panel vendedor' }];
 
   return (
     <main className="min-h-screen bg-black text-white">
-      <div className="mx-auto max-w-7xl px-4 pb-24 pt-4 md:px-8 md:pb-10 md:pt-6">
-        <header className="mb-6 flex flex-col gap-4 rounded-3xl border border-zinc-800 bg-zinc-950 p-5 md:flex-row md:items-center md:justify-between md:p-6">
+      <div className="mx-auto max-w-7xl px-4 py-6 md:px-8">
+        <header className="mb-8 flex flex-col gap-4 rounded-3xl border border-zinc-800 bg-zinc-950 p-6 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-xs uppercase tracking-[0.2em] text-zinc-500">Consigna Privada</div>
-            <h1 className="mt-2 text-2xl font-semibold md:text-3xl">{profile.display_name ?? profile.username ?? profile.email}</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-zinc-400">
+            <div className="text-sm uppercase tracking-wide text-zinc-500">Consigna Privada</div>
+            <h1 className="mt-1 text-2xl font-semibold">{profile.display_name ?? profile.email}</h1>
+            <div className="mt-2 flex items-center gap-2 text-sm text-zinc-400">
               <Badge>{profile.role}</Badge>
-              {profile.username ? <span>@{profile.username}</span> : null}
+              <span>{profile.email}</span>
             </div>
           </div>
           <div className="flex flex-col gap-3 md:items-end">

@@ -18,11 +18,10 @@ export function CreateSupplierForm({ currentAdminId }: { currentAdminId: string 
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = event.currentTarget;
     setError(null);
     setSuccess(null);
 
-    const formData = new FormData(form);
+    const formData = new FormData(event.currentTarget);
     const payload = {
       name: String(formData.get('name') ?? ''),
       contact_name: String(formData.get('contact_name') ?? ''),
@@ -45,14 +44,15 @@ export function CreateSupplierForm({ currentAdminId }: { currentAdminId: string 
         },
         body: JSON.stringify(parsed.data),
       });
+
       const result = await readJsonSafe(response);
 
       if (!response.ok) {
         throw new Error(String(result.error ?? 'No se pudo guardar'));
       }
 
-      setSuccess('Registro guardado.');
-      form.reset();
+      setSuccess('Proveedor creado.');
+      event.currentTarget.reset();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar');
@@ -68,21 +68,27 @@ export function CreateSupplierForm({ currentAdminId }: { currentAdminId: string 
           <Label htmlFor="name">Nombre</Label>
           <Input id="name" name="name" required />
         </div>
+
         <div className="space-y-2">
           <Label htmlFor="contact_name">Contacto</Label>
           <Input id="contact_name" name="contact_name" />
         </div>
+
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="contact_phone">Teléfono</Label>
           <Input id="contact_phone" name="contact_phone" />
         </div>
+
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="notes">Notas</Label>
           <Textarea id="notes" name="notes" />
         </div>
       </div>
+
       <FormMessage error={error} success={success} />
-      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Guardar'}</Button>
+      <Button disabled={loading} type="submit">
+        {loading ? 'Guardando...' : 'Guardar proveedor'}
+      </Button>
     </form>
   );
 }

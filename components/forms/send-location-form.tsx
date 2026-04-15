@@ -19,54 +19,31 @@ export function SendLocationForm() {
     const form = event.currentTarget;
     setError(null);
     setSuccess(null);
-
     if (!navigator.geolocation) {
       setError('Este dispositivo no soporta geolocalización.');
       return;
     }
-
     const note = String(new FormData(form).get('note') ?? '');
     setLoading(true);
-
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        try {
-          const response = await authFetch('/api/location', {
-            method: 'POST',
-            body: JSON.stringify({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              note,
-            }),
-          });
-          const result = await readJsonSafe(response);
-
-          if (!response.ok) {
-            throw new Error(String(result.error ?? 'No se pudo guardar la ubicación'));
-          }
-
-          setSuccess('Ubicación enviada.');
-          form.reset();
-          router.refresh();
-        } catch (err) {
-          setError(err instanceof Error ? err.message : 'No se pudo guardar la ubicación');
-        } finally {
-          setLoading(false);
-        }
-      },
-      () => {
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      try {
+        const response = await authFetch('/api/location', { method: 'POST', body: JSON.stringify({ latitude: position.coords.latitude, longitude: position.coords.longitude, note }) });
+        const result = await readJsonSafe(response);
+        if (!response.ok) throw new Error(String(result.error ?? 'No se pudo guardar la ubicación'));
+        setSuccess('Ubicación enviada.');
+        form.reset();
+        router.refresh();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'No se pudo guardar la ubicación');
+      } finally {
         setLoading(false);
-        setError('No se pudo obtener tu ubicación.');
-      },
-    );
+      }
+    }, () => { setLoading(false); setError('No se pudo obtener tu ubicación.'); }, { enableHighAccuracy: true, timeout: 10000 });
   }
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      <div className="space-y-2">
-        <Label htmlFor="note">Nota</Label>
-        <Textarea id="note" name="note" placeholder="Punto de venta, referencia, etc." />
-      </div>
+      <div className="space-y-2"><Label htmlFor="note">Nota</Label><Textarea id="note" name="note" placeholder="Punto de venta, referencia, etc." /></div>
       <FormMessage error={error} success={success} />
       <Button disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar ubicación actual'}</Button>
     </form>

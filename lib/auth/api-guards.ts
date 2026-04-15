@@ -14,6 +14,10 @@ function getBearerToken(request: Request) {
   return authorization.slice(7).trim();
 }
 
+function getHeaderUserId(request: Request) {
+  return request.headers.get('x-user-id')?.trim() || request.headers.get('x-admin-id')?.trim() || null;
+}
+
 async function createRouteSupabaseClient() {
   const cookieStore = await cookies();
 
@@ -31,7 +35,7 @@ async function createRouteSupabaseClient() {
               cookieStore.set(name, value, options);
             });
           } catch {
-            // no-op en route handlers
+            // no-op in route handlers
           }
         },
       },
@@ -41,21 +45,22 @@ async function createRouteSupabaseClient() {
 
 async function resolveUserId(request: Request) {
   const routeClient = await createRouteSupabaseClient();
+  const headerUserId = getHeaderUserId(request);
 
   const cookieUserResult = await routeClient.auth.getUser();
-  if (!cookieUserResult.error && cookieUserResult.data.user) {
-    return cookieUserResult.data.user.id;
-  }
+  const cookieUserId = !cookieUserResult.error && cookieUserResult.data.user ? cookieUserResult.data.user.id : null;
 
   const token = getBearerToken(request);
-  if (token) {
-    const tokenUserResult = await routeClient.auth.getUser(token);
-    if (!tokenUserResult.error && tokenUserResult.data.user) {
-      return tokenUserResult.data.user.id;
-    }
+  const tokenUserResult = token ? await routeClient.auth.getUser(token) : null;
+  const tokenUserId = tokenUserResult && !tokenUserResult.error && tokenUserResult.data.user ? tokenUserResult.data.user.id : null;
+
+  const resolvedByAuth = cookieUserId || tokenUserId;
+
+  if (resolvedByAuth && headerUserId && resolvedByAuth !== headerUserId) {
+    return null;
   }
 
-  return null;
+  return resolvedByAuth || headerUserId;
 }
 
 export async function getApiProfile(request: Request): Promise<ApiAuthSuccess | ApiAuthFailure> {
@@ -66,13 +71,7 @@ export async function getApiProfile(request: Request): Promise<ApiAuthSuccess | 
   }
 
   const admin = createAdminClient();
-
-  const profileResult = await admin
-    .from('profiles')
-    .select('*')
-    .eq('id', userId)
-    .maybeSingle();
-
+  const profileResult = await admin.from('profiles').select('*').eq('id', userId).maybeSingle();
   const profile = (profileResult.data as Profile | null) ?? null;
 
   if (profileResult.error || !profile) {

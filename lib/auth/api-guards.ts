@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient as createServerClient } from '@/lib/supabase/server';
 import { isAdminRole } from '@/lib/auth/guards';
 import type { AppRole, Profile } from '@/lib/types';
 
@@ -12,24 +13,38 @@ function getBearerToken(request: Request) {
   return authorization.slice(7).trim();
 }
 
-export async function getApiProfile(request: Request): Promise<ApiAuthSuccess | ApiAuthFailure> {
-  const token = getBearerToken(request);
-  if (!token) {
-    return { response: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) };
-  }
-
+async function getUserIdFromRequest(request: Request) {
   const admin = createAdminClient();
-  const userResult = await admin.auth.getUser(token);
-  const user = userResult.data.user;
+  const token = getBearerToken(request);
 
-  if (userResult.error || !user) {
+  if (token) {
+    const tokenUserResult = await admin.auth.getUser(token);
+    if (!tokenUserResult.error && tokenUserResult.data.user) {
+      return { userId: tokenUserResult.data.user.id, admin };
+    }
+  }
+
+  const server = await createServerClient();
+  const cookieUserResult = await server.auth.getUser();
+
+  if (!cookieUserResult.error && cookieUserResult.data.user) {
+    return { userId: cookieUserResult.data.user.id, admin };
+  }
+
+  return null;
+}
+
+export async function getApiProfile(request: Request): Promise<ApiAuthSuccess | ApiAuthFailure> {
+  const authUser = await getUserIdFromRequest(request);
+
+  if (!authUser?.userId) {
     return { response: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) };
   }
 
-  const profileResult = await admin
+  const profileResult = await authUser.admin
     .from('profiles')
     .select('*')
-    .eq('id', user.id)
+    .eq('id', authUser.userId)
     .maybeSingle();
 
   const profile = (profileResult.data as Profile | null) ?? null;
@@ -42,7 +57,7 @@ export async function getApiProfile(request: Request): Promise<ApiAuthSuccess | 
     return { response: NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 }) };
   }
 
-  return { profile, admin };
+  return { profile, admin: authUser.admin };
 }
 
 export async function requireApiProfile(request: Request): Promise<ApiAuthSuccess | ApiAuthFailure> {

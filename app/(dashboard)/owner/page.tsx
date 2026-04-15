@@ -17,7 +17,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function OwnerPage() {
   const profile = await requireAdmin();
-  const { profiles, suppliers, products, consignments, items, messages, metrics } = await getAdminDashboardData();
+  const { profiles, suppliers, products, consignments, items, messages, metrics } =
+    await getAdminDashboardData();
 
   const sellerRows = profiles
     .filter((row) => row.role !== 'super_admin')
@@ -44,24 +45,33 @@ export default async function OwnerPage() {
       <section className="grid gap-6 xl:grid-cols-2">
         <Card>
           <h2 className="mb-4 text-xl font-semibold">Usuarios</h2>
-          <InviteUserForm currentRole={profile.role} />
+          <InviteUserForm currentRole={profile.role} currentAdminId={profile.id} />
         </Card>
+
         <Card>
           <h2 className="mb-4 text-xl font-semibold">Proveedores</h2>
-          <CreateSupplierForm />
+          <CreateSupplierForm currentAdminId={profile.id} />
         </Card>
+
         <Card>
           <h2 className="mb-4 text-xl font-semibold">Productos</h2>
           <CreateProductForm suppliers={suppliers} />
         </Card>
+
         <Card>
           <h2 className="mb-4 text-xl font-semibold">Asignar consignación</h2>
-          <CreateConsignmentForm sellers={profiles.filter((row) => row.role === 'seller' && row.is_active)} suppliers={suppliers} products={products} />
+          <CreateConsignmentForm
+            sellers={profiles.filter((row) => row.role === 'seller' && row.is_active)}
+            suppliers={suppliers}
+            products={products}
+          />
         </Card>
+
         <Card>
           <h2 className="mb-4 text-xl font-semibold">Rendición manual</h2>
           <CreateReconciliationForm consignments={consignments} items={items} />
         </Card>
+
         <Card>
           <h2 className="mb-4 text-xl font-semibold">Mensaje a vendedor</h2>
           <CreateMessageForm sellers={profiles.filter((row) => row.role === 'seller')} />
@@ -70,7 +80,10 @@ export default async function OwnerPage() {
 
       <Card>
         <h2 className="mb-4 text-xl font-semibold">Usuarios cargados</h2>
-        <DataTable headers={['Nombre', 'Correo', 'Rol', 'Estado', 'Acciones']} rows={sellerRows} />
+        <DataTable
+          headers={['Nombre', 'Correo', 'Rol', 'Estado', 'Acciones']}
+          rows={sellerRows}
+        />
       </Card>
 
       <section className="grid gap-6 xl:grid-cols-2">
@@ -78,14 +91,23 @@ export default async function OwnerPage() {
           <h2 className="mb-4 text-xl font-semibold">Consignaciones</h2>
           <DataTable
             headers={['Vendedor', 'Estado', 'Abierta']}
-            rows={consignments.map((row) => [row.seller_id, row.status, new Date(row.opened_at).toLocaleString('es-CL')])}
+            rows={consignments.map((row) => [
+              row.seller_id,
+              row.status,
+              new Date(row.opened_at).toLocaleString('es-CL'),
+            ])}
           />
         </Card>
+
         <Card>
           <h2 className="mb-4 text-xl font-semibold">Mensajes recientes</h2>
           <DataTable
             headers={['Vendedor', 'Mensaje', 'Fecha']}
-            rows={messages.map((row) => [row.seller_id, row.body, new Date(row.created_at).toLocaleString('es-CL')])}
+            rows={messages.map((row) => [
+              row.seller_id,
+              row.body,
+              new Date(row.created_at).toLocaleString('es-CL'),
+            ])}
           />
         </Card>
       </section>

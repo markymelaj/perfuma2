@@ -1,14 +1,19 @@
 import { z } from 'zod';
+import { normalizeUsername } from '@/lib/auth/internal-email';
 
 export const loginSchema = z.object({
-  email: z.string().email('Correo inválido'),
+  identifier: z.string().min(2, 'Ingresa usuario o correo'),
   password: z.string().min(6, 'Mínimo 6 caracteres'),
 });
 
 export const createUserSchema = z.object({
-  email: z.string().email(),
-  password: z.string().min(6),
-  display_name: z.string().min(2),
+  username: z
+    .string()
+    .min(3, 'Mínimo 3 caracteres')
+    .transform((value) => normalizeUsername(value))
+    .refine((value) => value.length >= 3, 'Usuario inválido'),
+  password: z.string().min(6, 'Mínimo 6 caracteres'),
+  display_name: z.string().min(2, 'Mínimo 2 caracteres'),
   phone: z.string().optional().or(z.literal('')),
   role: z.enum(['owner', 'seller']),
 });
@@ -21,7 +26,6 @@ export const supplierSchema = z.object({
 });
 
 export const productSchema = z.object({
-  supplier_id: z.string().uuid().optional().or(z.literal('')),
   sku: z.string().optional().or(z.literal('')),
   name: z.string().min(2),
   description: z.string().optional().or(z.literal('')),
@@ -30,7 +34,6 @@ export const productSchema = z.object({
 
 export const consignmentSchema = z.object({
   seller_id: z.string().uuid(),
-  supplier_id: z.string().uuid().optional().or(z.literal('')),
   product_id: z.string().uuid(),
   quantity_assigned: z.coerce.number().int().positive(),
   unit_sale_price: z.coerce.number().min(0),

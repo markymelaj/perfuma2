@@ -6,12 +6,10 @@
   color-scheme: dark;
 }
 
-html,
-body {
+html, body {
   min-height: 100%;
   background: #030712;
   color: #f8fafc;
-  scroll-behavior: smooth;
 }
 
 body {
@@ -20,11 +18,4 @@ body {
 
 * {
   border-color: #27272a;
-}
-
-input,
-select,
-textarea,
-button {
-  font: inherit;
 }

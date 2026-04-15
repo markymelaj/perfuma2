@@ -11,13 +11,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateMessageForm({
-  currentActorId,
-  sellers,
-}: {
-  currentActorId: string;
-  sellers?: Profile[];
-}) {
+export function CreateMessageForm({ sellers, currentAdminId }: { sellers?: Profile[]; currentAdminId?: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,11 +37,12 @@ export function CreateMessageForm({
 
     setLoading(true);
     try {
+      const headers: Record<string, string> = {};
+      if (currentAdminId) headers['x-admin-id'] = currentAdminId;
+
       const response = await authFetch('/api/messages', {
         method: 'POST',
-        headers: {
-          'x-actor-id': currentActorId,
-        },
+        headers,
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
@@ -73,7 +68,7 @@ export function CreateMessageForm({
           <Label htmlFor="seller_id">Vendedor</Label>
           <Select id="seller_id" name="seller_id" defaultValue="" required>
             <option value="" disabled>Selecciona</option>
-            {sellers.map((seller) => <option key={seller.id} value={seller.id}>{seller.display_name ?? seller.email}</option>)}
+            {sellers.map((seller) => <option key={seller.id} value={seller.id}>{seller.display_name ?? seller.username ?? seller.email}</option>)}
           </Select>
         </div>
       ) : null}
@@ -82,7 +77,7 @@ export function CreateMessageForm({
         <Textarea id="body" name="body" required />
       </div>
       <FormMessage error={error} success={success} />
-      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar mensaje'}</Button>
+      <Button disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar mensaje'}</Button>
     </form>
   );
 }

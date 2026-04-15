@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { loginSchema } from '@/lib/validators';
+import { looksLikeEmail, makeInternalEmail, normalizeUsername } from '@/lib/auth/internal-email';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +12,7 @@ import { FormMessage } from '@/components/shared/form-message';
 
 export function LoginForm() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -20,11 +21,15 @@ export function LoginForm() {
     event.preventDefault();
     setError(null);
 
-    const parsed = loginSchema.safeParse({ email, password });
+    const parsed = loginSchema.safeParse({ identifier, password });
     if (!parsed.success) {
       setError(parsed.error.issues[0]?.message ?? 'Datos inválidos');
       return;
     }
+
+    const email = looksLikeEmail(identifier)
+      ? identifier.trim().toLowerCase()
+      : makeInternalEmail(normalizeUsername(identifier));
 
     setLoading(true);
     const supabase = createClient();
@@ -32,7 +37,7 @@ export function LoginForm() {
     setLoading(false);
 
     if (signInError) {
-      setError(signInError.message);
+      setError('Credenciales inválidas');
       return;
     }
 
@@ -43,8 +48,15 @@ export function LoginForm() {
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="space-y-2">
-        <Label htmlFor="email">Correo</Label>
-        <Input id="email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required />
+        <Label htmlFor="identifier">Usuario o correo</Label>
+        <Input
+          id="identifier"
+          value={identifier}
+          onChange={(event) => setIdentifier(event.target.value)}
+          required
+          autoCapitalize="none"
+          autoCorrect="off"
+        />
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">Contraseña</Label>

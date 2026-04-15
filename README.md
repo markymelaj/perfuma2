@@ -1,58 +1,68 @@
-# Consigna Privada — paquete nuevo y limpio
+# Consigna Privada V3
 
-Proyecto interno de venta a consignación con Next.js + Supabase + Vercel.
+Versión enfocada en operar mejor desde celular y centrar la gestión en cada vendedor.
 
-## Incluye
-- Login por email + contraseña
-- Roles `super_admin`, `owner`, `seller`
-- Alta manual de usuarios sin depender de magic link
-- Activar / desactivar vendedores
-- Reset manual de contraseña temporal
-- Proveedores, productos, consignaciones, ventas y rendiciones
-- Ubicación puntual
-- Mensajería interna owner/seller
-- `proxy.ts` listo para Next 16
-- `package-lock.json` incluido
-- `.npmrc` incluido para instalación más estable
+## Cambios principales
+- acceso con **usuario o correo + contraseña**
+- alta de vendedores solo con usuario + contraseña
+- stock acumulado por vendedor y producto
+- si cargas el mismo producto al mismo vendedor, se suma en la misma cuenta abierta
+- panel owner centrado en la **cuenta del vendedor**
+- proveedores fuera del flujo principal
+- tablas responsivas a cards en móvil
+- manifest listo para instalar como app web
 
-## Este paquete sirve para reemplazar el proyecto actual en GitHub y desplegar en Vercel
-Para un proyecto Supabase nuevo, ejecuta solo:
+## Importante para sesiones largas
+Si en tu proyecto Supabase el sistema desloguea demasiado rápido, revisa en:
+
+`Auth > Settings > JWT expiry`
+
+Para uso interno diario conviene dejar una duración más alta, por ejemplo 7 días.
+
+## SQL para proyecto nuevo
+Ejecuta:
 1. `supabase/schema.sql`
-2. crea tu primer usuario en Supabase Auth
-3. conviértelo a `super_admin`
+2. `supabase/migrations/20260415_v3_username_mobile.sql`
 
-## Usuario inicial
-Después de crear tu usuario en Auth:
+## SQL para proyecto existente
+Ejecuta solo:
+1. `supabase/migrations/20260415_v3_username_mobile.sql`
+
+## Primer super admin
+Después de crear tu usuario inicial:
 
 ```sql
 update public.profiles
 set role = 'super_admin', is_active = true, must_reenroll_security = false
-where email = 'TU_CORREO';
+where email = 'TU_CORREO_O_CORREO_INTERNO';
 ```
 
-## Variables de entorno
-Copia `.env.example` a `.env.local` en local, y en Vercel crea estas variables:
+## Usuario sin mail real
+El sistema genera un acceso interno basado en el nombre de usuario.
+Ejemplo:
+- usuario: `camila`
+- login interno: `camila@usuarios.consigna.local`
 
+En la práctica, el vendedor puede ingresar escribiendo solo `camila`.
+
+## Variables de entorno
+Configura:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `NEXT_PUBLIC_APP_URL`
 
-## Despliegue recomendado
-1. Sube este paquete a un repo nuevo de GitHub
-2. Importa ese repo en Vercel
-3. Configura las variables de entorno
-4. Desactiva signup libre en Supabase
-5. Haz el primer login con tu `super_admin`
+## Despliegue
+1. reemplaza el repo con este contenido
+2. push a GitHub
+3. redeploy en Vercel
+4. verifica variables y corre la migración SQL
 
-## Nota
-Este paquete fue probado localmente con `npm run build` antes de empaquetarse.
-
-
-## Mejoras incluidas en esta versión
-- Flujo de owner y seller más cómodo en móvil
-- Navegación móvil inferior
-- Tablas adaptadas a cards en pantallas pequeñas
-- Formularios principales con manejo correcto de reset y feedback
-- Rutas internas unificadas para no repetir el problema de `No autorizado` en acciones admin
-- Manifest básico para instalar como app web (PWA ligera)
+## Pruebas recomendadas
+1. login super admin
+2. crear usuario seller con username
+3. crear producto
+4. cargar stock dos veces al mismo vendedor y mismo producto
+5. registrar venta
+6. registrar rendición parcial o total
+7. revisar saldo pendiente y stock actual del vendedor

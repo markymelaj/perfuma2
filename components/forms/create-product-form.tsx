@@ -3,22 +3,14 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { productSchema } from '@/lib/validators';
-import type { Supplier } from '@/lib/types';
 import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateProductForm({
-  suppliers,
-  currentActorId,
-}: {
-  suppliers: Supplier[];
-  currentActorId: string;
-}) {
+export function CreateProductForm({ currentAdminId }: { currentAdminId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,7 +24,6 @@ export function CreateProductForm({
 
     const formData = new FormData(form);
     const payload = {
-      supplier_id: String(formData.get('supplier_id') ?? ''),
       sku: String(formData.get('sku') ?? ''),
       name: String(formData.get('name') ?? ''),
       description: String(formData.get('description') ?? ''),
@@ -50,7 +41,7 @@ export function CreateProductForm({
       const response = await authFetch('/api/products', {
         method: 'POST',
         headers: {
-          'x-actor-id': currentActorId,
+          'x-admin-id': currentAdminId,
         },
         body: JSON.stringify(parsed.data),
       });
@@ -74,35 +65,24 @@ export function CreateProductForm({
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="supplier_id">Proveedor</Label>
-          <Select defaultValue="" id="supplier_id" name="supplier_id">
-            <option value="">Sin proveedor</option>
-            {suppliers.map((supplier) => (
-              <option key={supplier.id} value={supplier.id}>
-                {supplier.name}
-              </option>
-            ))}
-          </Select>
+          <Label htmlFor="name">Nombre</Label>
+          <Input id="name" name="name" required />
         </div>
         <div className="space-y-2">
           <Label htmlFor="sku">SKU</Label>
           <Input id="sku" name="sku" />
         </div>
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="name">Nombre</Label>
-          <Input id="name" name="name" required />
-        </div>
-        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="description">Descripción</Label>
           <Textarea id="description" name="description" />
         </div>
-        <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="default_sale_price">Precio base</Label>
+        <div className="space-y-2">
+          <Label htmlFor="default_sale_price">Precio de venta</Label>
           <Input id="default_sale_price" name="default_sale_price" type="number" min="0" step="1" required />
         </div>
       </div>
       <FormMessage error={error} success={success} />
-      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Guardando...' : 'Guardar producto'}</Button>
+      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Guardar producto'}</Button>
     </form>
   );
 }

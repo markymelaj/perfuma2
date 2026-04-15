@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Consignment, ConsignmentItem } from '@/lib/types';
 import { saleSchema } from '@/lib/validators';
 import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
@@ -12,25 +12,24 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function RecordSaleForm({
-  currentActorId,
-  consignments,
-  items,
-}: {
-  currentActorId: string;
-  consignments: Consignment[];
-  items: ConsignmentItem[];
-}) {
+export function RecordSaleForm({ consignments, items }: { consignments: Consignment[]; items: ConsignmentItem[] }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [selectedConsignmentId, setSelectedConsignmentId] = useState('');
+
+  const filteredItems = useMemo(
+    () => items.filter((item) => !selectedConsignmentId || item.consignment_id === selectedConsignmentId),
+    [items, selectedConsignmentId],
+  );
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     setError(null);
     setSuccess(null);
+
     const formData = new FormData(form);
     const payload = {
       consignment_id: String(formData.get('consignment_id') ?? ''),
@@ -50,9 +49,6 @@ export function RecordSaleForm({
     try {
       const response = await authFetch('/api/sales', {
         method: 'POST',
-        headers: {
-          'x-actor-id': currentActorId,
-        },
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
@@ -63,6 +59,7 @@ export function RecordSaleForm({
 
       setSuccess('Venta registrada.');
       form.reset();
+      setSelectedConsignmentId('');
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar la venta');
@@ -75,21 +72,21 @@ export function RecordSaleForm({
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="consignment_id">Consignación</Label>
-          <Select id="consignment_id" name="consignment_id" required defaultValue="">
+          <Label htmlFor="consignment_id">Cuenta de stock</Label>
+          <Select id="consignment_id" name="consignment_id" required defaultValue="" onChange={(event) => setSelectedConsignmentId(event.target.value)}>
             <option value="" disabled>Selecciona</option>
             {consignments.map((consignment) => <option key={consignment.id} value={consignment.id}>{consignment.id.slice(0, 8)} · {consignment.status}</option>)}
           </Select>
         </div>
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="consignment_item_id">Ítem</Label>
+          <Label htmlFor="consignment_item_id">Producto</Label>
           <Select id="consignment_item_id" name="consignment_item_id" required defaultValue="">
             <option value="" disabled>Selecciona</option>
-            {items.map((item) => <option key={item.id} value={item.id}>{item.products?.name ?? item.product_id}</option>)}
+            {filteredItems.map((item) => <option key={item.id} value={item.id}>{item.products?.name ?? item.product_id}</option>)}
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="quantity">Cantidad</Label>
+          <Label htmlFor="quantity">Cantidad vendida</Label>
           <Input id="quantity" name="quantity" type="number" min="1" required />
         </div>
         <div className="space-y-2">
@@ -106,7 +103,7 @@ export function RecordSaleForm({
         </div>
       </div>
       <FormMessage error={error} success={success} />
-      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Guardando...' : 'Registrar venta'}</Button>
+      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Registrar venta'}</Button>
     </form>
   );
 }

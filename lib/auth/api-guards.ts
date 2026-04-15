@@ -14,10 +14,6 @@ function getBearerToken(request: Request) {
   return authorization.slice(7).trim();
 }
 
-function getActorIdHeader(request: Request) {
-  return request.headers.get('x-actor-id')?.trim() || null;
-}
-
 async function createRouteSupabaseClient() {
   const cookieStore = await cookies();
 
@@ -44,25 +40,19 @@ async function createRouteSupabaseClient() {
 }
 
 async function resolveUserId(request: Request) {
-  const admin = createAdminClient();
-  const token = getBearerToken(request);
-
-  if (token) {
-    const tokenUserResult = await admin.auth.getUser(token);
-    if (!tokenUserResult.error && tokenUserResult.data.user) {
-      return tokenUserResult.data.user.id;
-    }
-  }
-
-  const actorId = getActorIdHeader(request);
-  if (actorId) {
-    return actorId;
-  }
-
   const routeClient = await createRouteSupabaseClient();
+
   const cookieUserResult = await routeClient.auth.getUser();
   if (!cookieUserResult.error && cookieUserResult.data.user) {
     return cookieUserResult.data.user.id;
+  }
+
+  const token = getBearerToken(request);
+  if (token) {
+    const tokenUserResult = await routeClient.auth.getUser(token);
+    if (!tokenUserResult.error && tokenUserResult.data.user) {
+      return tokenUserResult.data.user.id;
+    }
   }
 
   return null;

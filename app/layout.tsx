@@ -3,8 +3,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Consigna Privada',
-  description: 'App interna para venta a consignación',
-  applicationName: 'Consigna Privada',
+  description: 'App interna para stock, ventas y rendiciones por vendedor',
+  manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
@@ -13,10 +13,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#030712',
-  width: 'device-width',
-  initialScale: 1,
-  viewportFit: 'cover',
+  themeColor: '#000000',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

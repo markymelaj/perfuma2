@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { reconciliationSchema } from '@/lib/validators';
 import { requireApiProfile } from '@/lib/auth/api-guards';
+import { getHeaderAdminContext } from '@/lib/auth/admin-header-context';
+
+async function getContext(request: Request) {
+  if (request.headers.get('x-admin-id')) {
+    return getHeaderAdminContext(request);
+  }
+  return requireApiProfile(request);
+}
 
 export async function POST(request: Request) {
-  const auth = await requireApiProfile(request);
-  if ('response' in auth) return auth.response;
+  const auth = await getContext(request);
+  if ('response' in auth || 'error' in auth) return 'response' in auth ? auth.response : auth.error;
 
   const json = await request.json();
   const parsed = reconciliationSchema.safeParse(json);

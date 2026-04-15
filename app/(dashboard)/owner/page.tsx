@@ -1,6 +1,6 @@
 import { InviteUserForm } from '@/components/forms/invite-user-form';
-import { CreateSupplierForm } from '@/components/forms/create-supplier-form';
 import { CreateProductForm } from '@/components/forms/create-product-form';
+import { SellerFocusForm } from '@/components/forms/seller-focus-form';
 import { CreateConsignmentForm } from '@/components/forms/create-consignment-form';
 import { CreateReconciliationForm } from '@/components/forms/create-reconciliation-form';
 import { CreateMessageForm } from '@/components/forms/create-message-form';
@@ -15,123 +15,145 @@ import { requireAdmin } from '@/lib/auth/guards';
 
 export const dynamic = 'force-dynamic';
 
-export default async function OwnerPage() {
+export default async function OwnerPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ seller?: string }>;
+}) {
   const profile = await requireAdmin();
-  const { profiles, suppliers, products, consignments, items, messages, metrics } =
-    await getAdminDashboardData();
+  const params = (await searchParams) ?? {};
+  const { profiles, products, consignments, items, sellerOverviews, selectedSeller, metrics } =
+    await getAdminDashboardData(params.seller);
 
-  const sellerRows = profiles
+  const sellers = profiles.filter((row) => row.role === 'seller' && row.is_active);
+  const selectedConsignments = selectedSeller
+    ? consignments.filter((row) => row.seller_id === selectedSeller.profile.id)
+    : [];
+  const selectedItems = selectedSeller
+    ? items.filter((row) => row.consignment_id === selectedSeller.openConsignmentId)
+    : [];
+
+  const userRows = profiles
     .filter((row) => row.role !== 'super_admin')
     .map((row) => [
-      row.display_name ?? 'Sin nombre',
-      row.email ?? '-',
+      row.display_name ?? row.username ?? row.email ?? 'Sin nombre',
+      row.username ?? '-',
       row.role,
       row.is_active ? 'Activo' : 'Inactivo',
       <div key={row.id} className="flex flex-wrap gap-2">
-        <ToggleUserStatusButton currentActorId={profile.id} userId={row.id} isActive={row.is_active} />
-        <ResetAccessButton currentActorId={profile.id} userId={row.id} />
+        <ToggleUserStatusButton userId={row.id} isActive={row.is_active} currentAdminId={profile.id} />
+        <ResetAccessButton userId={row.id} currentAdminId={profile.id} />
       </div>,
     ]);
 
   return (
-    <div className="space-y-8">
-      <section className="grid gap-4 grid-cols-2 xl:grid-cols-4">
-        <KpiCard title="Vendedores" value={String(metrics.sellers)} />
-        <KpiCard title="Productos" value={String(metrics.products)} />
-        <KpiCard title="Consignaciones abiertas" value={String(metrics.openConsignments)} />
-        <KpiCard title="Pendiente por rendir" value={formatCurrency(metrics.pendiente)} />
+    <div className="space-y-6 pb-24">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <KpiCard title="Vendedores" value={String(metrics.sellers)} hint="Usuarios de venta activos" />
+        <KpiCard title="Productos" value={String(metrics.products)} hint="Catálogo operativo" />
+        <KpiCard title="Con stock activo" value={String(metrics.activeSellersWithStock)} hint="Vendedores con mercadería" />
+        <KpiCard title="Pendiente por rendir" value={formatCurrency(metrics.pendiente)} hint="Venta acumulada menos rendido" />
       </section>
 
-      <section className="-mx-1 overflow-x-auto pb-1 md:hidden">
-        <div className="flex gap-2 px-1">
-          {[
-            ['#usuarios', 'Usuarios'],
-            ['#proveedores', 'Proveedores'],
-            ['#productos', 'Productos'],
-            ['#consignar', 'Consignar'],
-            ['#caja', 'Caja'],
-            ['#mensajes', 'Mensajes'],
-          ].map(([href, label]) => (
-            <a
-              key={href}
-              href={href}
-              className="whitespace-nowrap rounded-full border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm text-zinc-200"
-            >
-              {label}
-            </a>
-          ))}
+      <Card className="space-y-4">
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h2 className="text-2xl font-semibold">Cuenta del vendedor</h2>
+            <p className="mt-1 text-sm text-zinc-500">Selecciona un vendedor para ver stock, ventas, rendiciones y saldo pendiente en tiempo real.</p>
+          </div>
+          <SellerFocusForm
+            options={sellerOverviews.map((seller) => ({ id: seller.seller_id, label: seller.seller_name }))}
+            value={selectedSeller?.profile.id ?? sellerOverviews[0]?.seller_id ?? ''}
+          />
         </div>
-      </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <Card id="usuarios">
-          <h2 className="mb-4 text-xl font-semibold">Usuarios</h2>
-          <InviteUserForm currentRole={profile.role} currentActorId={profile.id} />
+        {selectedSeller ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <KpiCard title="Stock actual" value={String(selectedSeller.overview.current_units)} hint="Unidades disponibles" />
+              <KpiCard title="Vendido" value={formatCurrency(selectedSeller.overview.sold_amount)} hint={`${selectedSeller.overview.sold_units} unidades`} />
+              <KpiCard title="Rendido" value={formatCurrency(selectedSeller.overview.rendido_amount)} hint="Caja recibida" />
+              <KpiCard title="Pendiente" value={formatCurrency(selectedSeller.overview.pendiente_amount)} hint="Lo que aún debe rendir" />
+            </div>
+
+            <DataTable
+              headers={['Producto', 'Asignado', 'Vendido', 'Devuelto', 'Stock', 'Valor actual']}
+              rows={selectedSeller.stockLines.map((row) => [
+                row.product_name,
+                String(row.assigned),
+                String(row.sold),
+                String(row.returned),
+                String(row.current),
+                formatCurrency(row.current_value),
+              ])}
+            />
+          </>
+        ) : (
+          <div className="text-sm text-zinc-500">No hay vendedores cargados.</div>
+        )}
+      </Card>
+
+      <section className="grid gap-6 xl:grid-cols-2" id="acciones">
+        <Card id="stock">
+          <h2 className="mb-4 text-xl font-semibold">Cargar stock</h2>
+          <CreateConsignmentForm sellers={sellers} products={products} currentAdminId={profile.id} />
         </Card>
 
-        <Card id="proveedores">
-          <h2 className="mb-4 text-xl font-semibold">Proveedores</h2>
-          <CreateSupplierForm currentActorId={profile.id} />
+        <Card id="caja">
+          <h2 className="mb-4 text-xl font-semibold">Registrar rendición</h2>
+          <CreateReconciliationForm consignments={selectedConsignments} items={selectedItems} currentAdminId={profile.id} />
         </Card>
 
         <Card id="productos">
           <h2 className="mb-4 text-xl font-semibold">Productos</h2>
-          <CreateProductForm suppliers={suppliers} currentActorId={profile.id} />
+          <CreateProductForm currentAdminId={profile.id} />
         </Card>
 
-        <Card id="consignar">
-          <h2 className="mb-4 text-xl font-semibold">Asignar consignación</h2>
-          <CreateConsignmentForm
-            currentActorId={profile.id}
-            sellers={profiles.filter((row) => row.role === 'seller' && row.is_active)}
-            suppliers={suppliers}
-            products={products}
-          />
+        <Card id="usuarios">
+          <h2 className="mb-4 text-xl font-semibold">Alta de usuario</h2>
+          <InviteUserForm currentRole={profile.role} currentAdminId={profile.id} />
         </Card>
 
-        <Card id="caja">
-          <h2 className="mb-4 text-xl font-semibold">Rendición manual</h2>
-          <CreateReconciliationForm currentActorId={profile.id} consignments={consignments} items={items} />
-        </Card>
-
-        <Card id="mensajes">
+        <Card className="xl:col-span-2" id="mensajes">
           <h2 className="mb-4 text-xl font-semibold">Mensaje a vendedor</h2>
-          <CreateMessageForm currentActorId={profile.id} sellers={profiles.filter((row) => row.role === 'seller')} />
+          <CreateMessageForm sellers={sellers} currentAdminId={profile.id} />
         </Card>
       </section>
 
       <Card>
         <h2 className="mb-4 text-xl font-semibold">Usuarios cargados</h2>
-        <DataTable
-          headers={['Nombre', 'Correo', 'Rol', 'Estado', 'Acciones']}
-          rows={sellerRows}
-        />
+        <DataTable headers={['Nombre', 'Usuario', 'Rol', 'Estado', 'Acciones']} rows={userRows} />
       </Card>
 
-      <section className="grid gap-6 xl:grid-cols-2">
-        <Card>
-          <h2 className="mb-4 text-xl font-semibold">Consignaciones</h2>
-          <DataTable
-            headers={['Vendedor', 'Estado', 'Abierta']}
-            rows={consignments.map((row) => [
-              row.seller_id,
-              row.status,
-              new Date(row.opened_at).toLocaleString('es-CL'),
-            ])}
-          />
-        </Card>
-        <Card>
-          <h2 className="mb-4 text-xl font-semibold">Mensajes recientes</h2>
-          <DataTable
-            headers={['Vendedor', 'Mensaje', 'Fecha']}
-            rows={messages.map((row) => [
-              row.seller_id,
-              row.body,
-              new Date(row.created_at).toLocaleString('es-CL'),
-            ])}
-          />
-        </Card>
-      </section>
+      {selectedSeller ? (
+        <section className="grid gap-6 xl:grid-cols-2">
+          <Card>
+            <h2 className="mb-4 text-xl font-semibold">Ventas recientes</h2>
+            <DataTable
+              headers={['Fecha', 'Producto', 'Cantidad', 'Pago', 'Monto']}
+              rows={selectedSeller.sales.map((row) => [
+                new Date(row.sold_at).toLocaleString('es-CL'),
+                row.product_name,
+                String(row.quantity),
+                row.payment_method,
+                formatCurrency(row.amount),
+              ])}
+            />
+          </Card>
+          <Card>
+            <h2 className="mb-4 text-xl font-semibold">Rendiciones recientes</h2>
+            <DataTable
+              headers={['Fecha', 'Tipo', 'Monto', 'Notas']}
+              rows={selectedSeller.reconciliations.map((row) => [
+                new Date(row.created_at).toLocaleString('es-CL'),
+                row.type,
+                formatCurrency(row.amount),
+                row.notes ?? '-',
+              ])}
+            />
+          </Card>
+        </section>
+      ) : null}
     </div>
   );
 }

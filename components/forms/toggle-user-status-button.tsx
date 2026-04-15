@@ -5,15 +5,7 @@ import { useState } from 'react';
 import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
 
-export function ToggleUserStatusButton({
-  currentActorId,
-  userId,
-  isActive,
-}: {
-  currentActorId: string;
-  userId: string;
-  isActive: boolean;
-}) {
+export function ToggleUserStatusButton({ userId, isActive, currentAdminId }: { userId: string; isActive: boolean; currentAdminId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -23,7 +15,7 @@ export function ToggleUserStatusButton({
       const response = await authFetch('/api/admin/users', {
         method: 'PATCH',
         headers: {
-          'x-actor-id': currentActorId,
+          'x-admin-id': currentAdminId,
         },
         body: JSON.stringify({ action: 'toggle-status', userId, isActive: !isActive }),
       });

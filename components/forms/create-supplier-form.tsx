@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateSupplierForm({ currentActorId }: { currentActorId: string }) {
+export function CreateSupplierForm({ currentAdminId }: { currentAdminId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +41,7 @@ export function CreateSupplierForm({ currentActorId }: { currentActorId: string 
       const response = await authFetch('/api/suppliers', {
         method: 'POST',
         headers: {
-          'x-actor-id': currentActorId,
+          'x-admin-id': currentAdminId,
         },
         body: JSON.stringify(parsed.data),
       });
@@ -51,7 +51,7 @@ export function CreateSupplierForm({ currentActorId }: { currentActorId: string 
         throw new Error(String(result.error ?? 'No se pudo guardar'));
       }
 
-      setSuccess('Proveedor creado.');
+      setSuccess('Registro guardado.');
       form.reset();
       router.refresh();
     } catch (err) {
@@ -74,7 +74,7 @@ export function CreateSupplierForm({ currentActorId }: { currentActorId: string 
         </div>
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="contact_phone">Teléfono</Label>
-          <Input id="contact_phone" name="contact_phone" inputMode="tel" />
+          <Input id="contact_phone" name="contact_phone" />
         </div>
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="notes">Notas</Label>
@@ -82,7 +82,7 @@ export function CreateSupplierForm({ currentActorId }: { currentActorId: string 
         </div>
       </div>
       <FormMessage error={error} success={success} />
-      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Guardando...' : 'Guardar proveedor'}</Button>
+      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Guardar'}</Button>
     </form>
   );
 }

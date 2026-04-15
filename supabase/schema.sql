@@ -37,6 +37,7 @@ $$;
 create table if not exists public.profiles (
   id uuid primary key references auth.users(id) on delete cascade,
   email text unique,
+  username text unique,
   display_name text,
   phone text,
   role public.app_role not null default 'seller',
@@ -54,14 +55,16 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, email, display_name)
+  insert into public.profiles (id, email, username, display_name)
   values (
     new.id,
     new.email,
+    coalesce(new.raw_user_meta_data ->> 'username', split_part(coalesce(new.email, ''), '@', 1)),
     coalesce(new.raw_user_meta_data ->> 'display_name', split_part(coalesce(new.email, ''), '@', 1))
   )
   on conflict (id) do update
     set email = excluded.email,
+        username = coalesce(public.profiles.username, excluded.username),
         display_name = coalesce(public.profiles.display_name, excluded.display_name);
   return new;
 end;

@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createUserSchema } from '@/lib/validators';
-import { requireApiAdmin } from '@/lib/auth/api-guards';
+import { makeInternalEmail } from '@/lib/auth/internal-email';
+import { getHeaderAdminContext } from '@/lib/auth/admin-header-context';
 import type { AppRole } from '@/lib/types';
 
 export async function POST(request: Request) {
-  const auth = await requireApiAdmin(request);
-  if ('response' in auth) return auth.response;
+  const ctx = await getHeaderAdminContext(request);
+  if ('error' in ctx) return ctx.error;
 
   const json = await request.json();
   const parsed = createUserSchema.safeParse(json);
@@ -17,18 +18,34 @@ export async function POST(request: Request) {
     );
   }
 
-  if (auth.profile.role !== 'super_admin' && parsed.data.role !== 'seller') {
+  if (ctx.profile.role !== 'super_admin' && parsed.data.role !== 'seller') {
     return NextResponse.json(
       { error: 'Solo super_admin puede crear owners' },
       { status: 403 },
     );
   }
 
-  const created = await auth.admin.auth.admin.createUser({
-    email: parsed.data.email,
+  const username = parsed.data.username;
+  const loginEmail = makeInternalEmail(username);
+
+  const existingUsername = await ctx.admin
+    .from('profiles')
+    .select('id')
+    .eq('username', username)
+    .maybeSingle();
+
+  if (existingUsername.data) {
+    return NextResponse.json({ error: 'Ese usuario ya existe' }, { status: 400 });
+  }
+
+  const created = await ctx.admin.auth.admin.createUser({
+    email: loginEmail,
     password: parsed.data.password,
     email_confirm: true,
-    user_metadata: { display_name: parsed.data.display_name },
+    user_metadata: {
+      display_name: parsed.data.display_name,
+      username,
+    },
   });
 
   if (created.error || !created.data.user) {
@@ -38,10 +55,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const { error } = await auth.admin
+  const { error } = await ctx.admin
     .from('profiles')
     .update({
       display_name: parsed.data.display_name,
+      username,
+      email: loginEmail,
       phone: parsed.data.phone || null,
       role: parsed.data.role,
       is_active: true,
@@ -57,23 +76,28 @@ export async function POST(request: Request) {
 }
 
 export async function PATCH(request: Request) {
-  const auth = await requireApiAdmin(request);
-  if ('response' in auth) return auth.response;
+  const ctx = await getHeaderAdminContext(request);
+  if ('error' in ctx) return ctx.error;
 
   const { action, userId, isActive, password } = await request.json();
 
   if (action === 'toggle-status') {
-    const target = await auth.admin.from('profiles').select('role').eq('id', userId).maybeSingle();
+    const target = await ctx.admin
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+
     const targetRole = (target.data?.role ?? 'seller') as AppRole;
 
-    if (auth.profile.role !== 'super_admin' && targetRole !== 'seller') {
+    if (ctx.profile.role !== 'super_admin' && targetRole !== 'seller') {
       return NextResponse.json(
         { error: 'Solo super_admin puede modificar owners' },
         { status: 403 },
       );
     }
 
-    const { error } = await auth.admin
+    const { error } = await ctx.admin
       .from('profiles')
       .update({ is_active: Boolean(isActive) })
       .eq('id', userId);
@@ -93,17 +117,22 @@ export async function PATCH(request: Request) {
       );
     }
 
-    const target = await auth.admin.from('profiles').select('role').eq('id', userId).maybeSingle();
+    const target = await ctx.admin
+      .from('profiles')
+      .select('role')
+      .eq('id', userId)
+      .maybeSingle();
+
     const targetRole = (target.data?.role ?? 'seller') as AppRole;
 
-    if (auth.profile.role !== 'super_admin' && targetRole !== 'seller') {
+    if (ctx.profile.role !== 'super_admin' && targetRole !== 'seller') {
       return NextResponse.json(
         { error: 'Solo super_admin puede resetear owners' },
         { status: 403 },
       );
     }
 
-    const updated = await auth.admin.auth.admin.updateUserById(userId, {
+    const updated = await ctx.admin.auth.admin.updateUserById(userId, {
       password,
     });
 

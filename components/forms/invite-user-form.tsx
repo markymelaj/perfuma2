@@ -13,10 +13,10 @@ import { FormMessage } from '@/components/shared/form-message';
 
 export function InviteUserForm({
   currentRole,
-  currentActorId,
+  currentAdminId,
 }: {
   currentRole: AppRole;
-  currentActorId: string;
+  currentAdminId: string;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -26,13 +26,14 @@ export function InviteUserForm({
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
+
     setError(null);
     setSuccess(null);
     setLoading(true);
 
     const formData = new FormData(form);
     const payload = {
-      email: String(formData.get('email') ?? ''),
+      username: String(formData.get('username') ?? ''),
       password: String(formData.get('password') ?? ''),
       display_name: String(formData.get('display_name') ?? ''),
       phone: String(formData.get('phone') ?? ''),
@@ -50,7 +51,7 @@ export function InviteUserForm({
       const response = await authFetch('/api/admin/users', {
         method: 'POST',
         headers: {
-          'x-actor-id': currentActorId,
+          'x-admin-id': currentAdminId,
         },
         body: JSON.stringify(parsed.data),
       });
@@ -78,18 +79,18 @@ export function InviteUserForm({
           <Input id="display_name" name="display_name" required />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="phone">Teléfono</Label>
-          <Input id="phone" name="phone" inputMode="tel" />
+          <Label htmlFor="username">Usuario</Label>
+          <Input id="username" name="username" required autoCapitalize="none" autoCorrect="off" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="email">Correo</Label>
-          <Input id="email" name="email" type="email" autoComplete="email" required />
+          <Label htmlFor="phone">Teléfono</Label>
+          <Input id="phone" name="phone" />
         </div>
         <div className="space-y-2">
           <Label htmlFor="password">Contraseña temporal</Label>
-          <Input id="password" name="password" type="password" autoComplete="new-password" required />
+          <Input id="password" name="password" type="password" required />
         </div>
-        <div className="space-y-2 md:col-span-2">
+        <div className="space-y-2">
           <Label htmlFor="role">Rol</Label>
           <Select defaultValue="seller" id="role" name="role">
             <option value="seller">seller</option>
@@ -100,7 +101,7 @@ export function InviteUserForm({
         </div>
       </div>
       <FormMessage error={error} success={success} />
-      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Creando...' : 'Crear usuario'}</Button>
+      <Button disabled={loading} type="submit">{loading ? 'Creando...' : 'Crear usuario'}</Button>
     </form>
   );
 }

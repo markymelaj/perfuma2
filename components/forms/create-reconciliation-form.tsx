@@ -13,13 +13,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
 export function CreateReconciliationForm({
-  currentActorId,
   consignments,
   items,
+  currentAdminId,
 }: {
-  currentActorId: string;
   consignments: Consignment[];
   items: ConsignmentItem[];
+  currentAdminId?: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -51,11 +51,12 @@ export function CreateReconciliationForm({
 
     setLoading(true);
     try {
+      const headers: Record<string, string> = {};
+      if (currentAdminId) headers['x-admin-id'] = currentAdminId;
+
       const response = await authFetch('/api/reconciliations', {
         method: 'POST',
-        headers: {
-          'x-actor-id': currentActorId,
-        },
+        headers,
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
@@ -78,7 +79,7 @@ export function CreateReconciliationForm({
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2 md:col-span-2">
-          <Label htmlFor="consignment_id">Consignación</Label>
+          <Label htmlFor="consignment_id">Cuenta de stock</Label>
           <Select id="consignment_id" name="consignment_id" required defaultValue="">
             <option value="" disabled>Selecciona</option>
             {consignments.map((consignment) => <option key={consignment.id} value={consignment.id}>{consignment.id.slice(0, 8)} · {consignment.status}</option>)}
@@ -95,12 +96,12 @@ export function CreateReconciliationForm({
           <Label htmlFor="cash_received">Efectivo</Label>
           <Input id="cash_received" name="cash_received" type="number" min="0" defaultValue="0" />
         </div>
-        <div className="space-y-2 md:col-span-2">
+        <div className="space-y-2">
           <Label htmlFor="transfer_received">Transferencia</Label>
           <Input id="transfer_received" name="transfer_received" type="number" min="0" defaultValue="0" />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="consignment_item_id">Ítem devuelto</Label>
+          <Label htmlFor="consignment_item_id">Producto devuelto</Label>
           <Select id="consignment_item_id" name="consignment_item_id" defaultValue="">
             <option value="">Sin devolución</option>
             {items.map((item) => <option key={item.id} value={item.id}>{item.products?.name ?? item.product_id}</option>)}
@@ -116,7 +117,7 @@ export function CreateReconciliationForm({
         </div>
       </div>
       <FormMessage error={error} success={success} />
-      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Guardando...' : 'Registrar rendición'}</Button>
+      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Registrar rendición'}</Button>
     </form>
   );
 }

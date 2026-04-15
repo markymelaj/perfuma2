@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import type { Product, Profile, Supplier } from '@/lib/types';
+import type { Product, Profile } from '@/lib/types';
 import { consignmentSchema } from '@/lib/validators';
 import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
@@ -13,15 +13,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
 export function CreateConsignmentForm({
-  currentActorId,
   sellers,
-  suppliers,
   products,
+  currentAdminId,
 }: {
-  currentActorId: string;
   sellers: Profile[];
-  suppliers: Supplier[];
   products: Product[];
+  currentAdminId: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -36,7 +34,6 @@ export function CreateConsignmentForm({
     const formData = new FormData(form);
     const payload = {
       seller_id: String(formData.get('seller_id') ?? ''),
-      supplier_id: String(formData.get('supplier_id') ?? ''),
       product_id: String(formData.get('product_id') ?? ''),
       quantity_assigned: String(formData.get('quantity_assigned') ?? '0'),
       unit_sale_price: String(formData.get('unit_sale_price') ?? '0'),
@@ -54,21 +51,21 @@ export function CreateConsignmentForm({
       const response = await authFetch('/api/consignments', {
         method: 'POST',
         headers: {
-          'x-actor-id': currentActorId,
+          'x-admin-id': currentAdminId,
         },
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
 
       if (!response.ok) {
-        throw new Error(String(result.error ?? 'No se pudo crear la consignación'));
+        throw new Error(String(result.error ?? 'No se pudo cargar stock'));
       }
 
-      setSuccess('Consignación creada.');
+      setSuccess('Stock asignado y acumulado correctamente.');
       form.reset();
       router.refresh();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'No se pudo crear la consignación');
+      setError(err instanceof Error ? err.message : 'No se pudo cargar stock');
     } finally {
       setLoading(false);
     }
@@ -81,14 +78,7 @@ export function CreateConsignmentForm({
           <Label htmlFor="seller_id">Vendedor</Label>
           <Select id="seller_id" name="seller_id" required defaultValue="">
             <option value="" disabled>Selecciona</option>
-            {sellers.map((seller) => <option key={seller.id} value={seller.id}>{seller.display_name ?? seller.email}</option>)}
-          </Select>
-        </div>
-        <div className="space-y-2">
-          <Label htmlFor="supplier_id">Proveedor</Label>
-          <Select id="supplier_id" name="supplier_id" defaultValue="">
-            <option value="">Sin proveedor</option>
-            {suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}
+            {sellers.map((seller) => <option key={seller.id} value={seller.id}>{seller.display_name ?? seller.username ?? seller.email}</option>)}
           </Select>
         </div>
         <div className="space-y-2 md:col-span-2">
@@ -99,7 +89,7 @@ export function CreateConsignmentForm({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="quantity_assigned">Cantidad</Label>
+          <Label htmlFor="quantity_assigned">Unidades a agregar</Label>
           <Input id="quantity_assigned" name="quantity_assigned" type="number" min="1" required />
         </div>
         <div className="space-y-2">
@@ -112,7 +102,7 @@ export function CreateConsignmentForm({
         </div>
       </div>
       <FormMessage error={error} success={success} />
-      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Guardando...' : 'Crear consignación'}</Button>
+      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Cargar stock al vendedor'}</Button>
     </form>
   );
 }

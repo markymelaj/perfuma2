@@ -5,13 +5,7 @@ import { useState } from 'react';
 import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
 
-export function ResetAccessButton({
-  currentActorId,
-  userId,
-}: {
-  currentActorId: string;
-  userId: string;
-}) {
+export function ResetAccessButton({ userId, currentAdminId }: { userId: string; currentAdminId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -24,7 +18,7 @@ export function ResetAccessButton({
       const response = await authFetch('/api/admin/users', {
         method: 'PATCH',
         headers: {
-          'x-actor-id': currentActorId,
+          'x-admin-id': currentAdminId,
         },
         body: JSON.stringify({ action: 'reset-password', userId, password }),
       });

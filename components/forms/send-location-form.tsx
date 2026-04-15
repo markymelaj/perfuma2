@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function SendLocationForm({ currentActorId }: { currentActorId: string }) {
+export function SendLocationForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -33,9 +33,6 @@ export function SendLocationForm({ currentActorId }: { currentActorId: string })
         try {
           const response = await authFetch('/api/location', {
             method: 'POST',
-            headers: {
-              'x-actor-id': currentActorId,
-            },
             body: JSON.stringify({
               latitude: position.coords.latitude,
               longitude: position.coords.longitude,
@@ -61,7 +58,6 @@ export function SendLocationForm({ currentActorId }: { currentActorId: string })
         setLoading(false);
         setError('No se pudo obtener tu ubicación.');
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
     );
   }
 
@@ -72,7 +68,7 @@ export function SendLocationForm({ currentActorId }: { currentActorId: string })
         <Textarea id="note" name="note" placeholder="Punto de venta, referencia, etc." />
       </div>
       <FormMessage error={error} success={success} />
-      <Button className="w-full sm:w-auto" disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar ubicación actual'}</Button>
+      <Button disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar ubicación actual'}</Button>
     </form>
   );
 }

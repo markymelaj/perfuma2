@@ -1,14 +1,35 @@
 import { NextResponse } from 'next/server';
 import { supplierSchema } from '@/lib/validators';
-import { getCurrentProfile } from '@/lib/auth/guards';
 import { createAdminClient } from '@/lib/supabase/admin';
+import type { Profile } from '@/lib/types';
 
-async function getAdminContext() {
-  const profile = await getCurrentProfile();
+async function getAdminContext(request: Request) {
+  const adminId = request.headers.get('x-admin-id');
+  const admin = createAdminClient();
 
-  if (!profile || !profile.is_active) {
+  if (!adminId) {
     return {
       error: NextResponse.json({ error: 'No autorizado' }, { status: 401 }),
+    };
+  }
+
+  const profileResult = await admin
+    .from('profiles')
+    .select('*')
+    .eq('id', adminId)
+    .maybeSingle();
+
+  const profile = (profileResult.data as Profile | null) ?? null;
+
+  if (profileResult.error || !profile) {
+    return {
+      error: NextResponse.json({ error: 'No autorizado' }, { status: 401 }),
+    };
+  }
+
+  if (!profile.is_active) {
+    return {
+      error: NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 }),
     };
   }
 
@@ -18,14 +39,11 @@ async function getAdminContext() {
     };
   }
 
-  return {
-    profile,
-    admin: createAdminClient(),
-  };
+  return { profile, admin };
 }
 
 export async function POST(request: Request) {
-  const ctx = await getAdminContext();
+  const ctx = await getAdminContext(request);
   if ('error' in ctx) return ctx.error;
 
   const json = await request.json();

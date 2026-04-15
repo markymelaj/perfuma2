@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { createServerClient } from '@supabase/ssr';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { isAdminRole } from '@/lib/auth/guards';
@@ -13,36 +14,25 @@ function getBearerToken(request: Request) {
   return authorization.slice(7).trim();
 }
 
-function getRequestCookies(request: Request) {
-  const cookieHeader = request.headers.get('cookie') ?? '';
-  if (!cookieHeader) return [];
+async function createRouteSupabaseClient() {
+  const cookieStore = await cookies();
 
-  return cookieHeader
-    .split(';')
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .map((part) => {
-      const index = part.indexOf('=');
-      const name = index >= 0 ? part.slice(0, index) : part;
-      const value = index >= 0 ? part.slice(index + 1) : '';
-      return {
-        name: decodeURIComponent(name),
-        value: decodeURIComponent(value),
-      };
-    });
-}
-
-function createRouteSupabaseClient(request: Request) {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
-          return getRequestCookies(request);
+          return cookieStore.getAll();
         },
-        setAll() {
-          // no-op en route handlers para este flujo
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) => {
+              cookieStore.set(name, value, options);
+            });
+          } catch {
+            // no-op en route handlers
+          }
         },
       },
     },
@@ -50,7 +40,7 @@ function createRouteSupabaseClient(request: Request) {
 }
 
 async function resolveUserId(request: Request) {
-  const routeClient = createRouteSupabaseClient(request);
+  const routeClient = await createRouteSupabaseClient();
 
   const cookieUserResult = await routeClient.auth.getUser();
   if (!cookieUserResult.error && cookieUserResult.data.user) {

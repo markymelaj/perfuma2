@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateSupplierForm() {
+export function CreateSupplierForm({ currentAdminId }: { currentAdminId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,8 +39,12 @@ export function CreateSupplierForm() {
     try {
       const response = await authFetch('/api/suppliers', {
         method: 'POST',
+        headers: {
+          'x-admin-id': currentAdminId,
+        },
         body: JSON.stringify(parsed.data),
       });
+
       const result = await readJsonSafe(response);
 
       if (!response.ok) {
@@ -64,21 +68,27 @@ export function CreateSupplierForm() {
           <Label htmlFor="name">Nombre</Label>
           <Input id="name" name="name" required />
         </div>
+
         <div className="space-y-2">
           <Label htmlFor="contact_name">Contacto</Label>
           <Input id="contact_name" name="contact_name" />
         </div>
+
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="contact_phone">Teléfono</Label>
           <Input id="contact_phone" name="contact_phone" />
         </div>
+
         <div className="space-y-2 md:col-span-2">
           <Label htmlFor="notes">Notas</Label>
           <Textarea id="notes" name="notes" />
         </div>
       </div>
+
       <FormMessage error={error} success={success} />
-      <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Guardar proveedor'}</Button>
+      <Button disabled={loading} type="submit">
+        {loading ? 'Guardando...' : 'Guardar proveedor'}
+      </Button>
     </form>
   );
 }

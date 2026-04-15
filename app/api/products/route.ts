@@ -19,6 +19,7 @@ export async function POST(request: Request) {
       name: parsed.data.name,
       description: parsed.data.description || null,
       default_sale_price: 0,
+      supplier_id: null,
     },
   ]);
 

@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateProductForm() {
+export function CreateProductForm({ actorId }: { actorId: string }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,11 +22,11 @@ export function CreateProductForm() {
     setError(null);
     setSuccess(null);
 
+    const formData = new FormData(form);
     const payload = {
-      sku: String(new FormData(form).get('sku') ?? ''),
-      name: String(new FormData(form).get('name') ?? ''),
-      description: String(new FormData(form).get('description') ?? ''),
-      default_sale_price: 0,
+      sku: String(formData.get('sku') ?? ''),
+      name: String(formData.get('name') ?? ''),
+      description: String(formData.get('description') ?? ''),
     };
 
     const parsed = productSchema.safeParse(payload);
@@ -37,10 +37,16 @@ export function CreateProductForm() {
 
     setLoading(true);
     try {
-      const response = await authFetch('/api/products', { method: 'POST', body: JSON.stringify(parsed.data) });
+      const response = await authFetch('/api/products', {
+        method: 'POST',
+        headers: { 'x-actor-id': actorId },
+        body: JSON.stringify(parsed.data),
+      });
       const result = await readJsonSafe(response);
-      if (!response.ok) throw new Error(String(result.error ?? 'No se pudo guardar'));
-      setSuccess('Producto creado.');
+      if (!response.ok) {
+        throw new Error(String(result.error ?? 'No se pudo guardar'));
+      }
+      setSuccess('Producto creado. El precio se define al cargar stock al vendedor.');
       form.reset();
       router.refresh();
     } catch (err) {
@@ -53,11 +59,19 @@ export function CreateProductForm() {
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2"><Label htmlFor="sku">SKU</Label><Input id="sku" name="sku" /></div>
-        <div className="space-y-2 md:col-span-2"><Label htmlFor="name">Nombre</Label><Input id="name" name="name" required /></div>
-        <div className="space-y-2 md:col-span-2"><Label htmlFor="description">Descripción</Label><Textarea id="description" name="description" /></div>
+        <div className="space-y-2">
+          <Label htmlFor="name">Nombre</Label>
+          <Input id="name" name="name" required />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="sku">SKU</Label>
+          <Input id="sku" name="sku" />
+        </div>
+        <div className="space-y-2 md:col-span-2">
+          <Label htmlFor="description">Descripción</Label>
+          <Textarea id="description" name="description" />
+        </div>
       </div>
-      <p className="text-sm text-zinc-500">El precio se define al momento de cargar stock al vendedor.</p>
       <FormMessage error={error} success={success} />
       <Button disabled={loading} type="submit">{loading ? 'Guardando...' : 'Guardar producto'}</Button>
     </form>

@@ -14,8 +14,8 @@ function getBearerToken(request: Request) {
   return authorization.slice(7).trim();
 }
 
-function getHeaderUserId(request: Request) {
-  return request.headers.get('x-user-id')?.trim() || request.headers.get('x-admin-id')?.trim() || null;
+function getActorHeader(request: Request) {
+  return request.headers.get('x-actor-id')?.trim() || null;
 }
 
 async function createRouteSupabaseClient() {
@@ -35,7 +35,7 @@ async function createRouteSupabaseClient() {
               cookieStore.set(name, value, options);
             });
           } catch {
-            // no-op in route handlers
+            // no-op
           }
         },
       },
@@ -43,35 +43,46 @@ async function createRouteSupabaseClient() {
   );
 }
 
-async function resolveUserId(request: Request) {
+async function resolveSessionUserId(request: Request) {
   const routeClient = await createRouteSupabaseClient();
-  const headerUserId = getHeaderUserId(request);
 
   const cookieUserResult = await routeClient.auth.getUser();
-  const cookieUserId = !cookieUserResult.error && cookieUserResult.data.user ? cookieUserResult.data.user.id : null;
-
-  const token = getBearerToken(request);
-  const tokenUserResult = token ? await routeClient.auth.getUser(token) : null;
-  const tokenUserId = tokenUserResult && !tokenUserResult.error && tokenUserResult.data.user ? tokenUserResult.data.user.id : null;
-
-  const resolvedByAuth = cookieUserId || tokenUserId;
-
-  if (resolvedByAuth && headerUserId && resolvedByAuth !== headerUserId) {
-    return null;
+  if (!cookieUserResult.error && cookieUserResult.data.user) {
+    return cookieUserResult.data.user.id;
   }
 
-  return resolvedByAuth || headerUserId;
+  const token = getBearerToken(request);
+  if (token) {
+    const tokenUserResult = await routeClient.auth.getUser(token);
+    if (!tokenUserResult.error && tokenUserResult.data.user) {
+      return tokenUserResult.data.user.id;
+    }
+  }
+
+  return null;
+}
+
+async function resolveUserId(request: Request): Promise<{ userId: string | null } | { error: NextResponse }> {
+  const sessionUserId = await resolveSessionUserId(request);
+  const actorHeader = getActorHeader(request);
+
+  if (sessionUserId && actorHeader && actorHeader !== sessionUserId) {
+    return { error: NextResponse.json({ error: 'Identidad inválida' }, { status: 403 }) };
+  }
+
+  return { userId: sessionUserId ?? actorHeader ?? null };
 }
 
 export async function getApiProfile(request: Request): Promise<ApiAuthSuccess | ApiAuthFailure> {
-  const userId = await resolveUserId(request);
+  const resolved = await resolveUserId(request);
+  if ('error' in resolved) return { response: resolved.error as NextResponse };
 
-  if (!userId) {
+  if (!resolved.userId) {
     return { response: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) };
   }
 
   const admin = createAdminClient();
-  const profileResult = await admin.from('profiles').select('*').eq('id', userId).maybeSingle();
+  const profileResult = await admin.from('profiles').select('*').eq('id', resolved.userId).maybeSingle();
   const profile = (profileResult.data as Profile | null) ?? null;
 
   if (profileResult.error || !profile) {

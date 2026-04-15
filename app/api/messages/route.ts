@@ -31,12 +31,20 @@ export async function POST(request: Request) {
       .limit(1)
       .maybeSingle();
 
-    if (!owner.data) return NextResponse.json({ error: 'No hay dueño activo disponible' }, { status: 400 });
+    if (!owner.data) {
+      return NextResponse.json({ error: 'No hay un administrador activo disponible' }, { status: 400 });
+    }
+
     ownerId = (owner.data as Profile).id;
   }
 
   const { error } = await auth.admin.from('internal_messages').insert([
-    { owner_id: ownerId, seller_id: sellerId, sender_id: auth.profile.id, body: parsed.data.body },
+    {
+      owner_id: ownerId,
+      seller_id: sellerId,
+      sender_id: auth.profile.id,
+      body: parsed.data.body,
+    },
   ]);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

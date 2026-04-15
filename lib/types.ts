@@ -72,14 +72,56 @@ export type InternalMessage = {
   created_at: string;
 };
 
-export type SellerStockRow = {
+export type SellerStockLine = {
   product_id: string;
   product_name: string;
-  assigned: number;
-  sold: number;
-  returned: number;
-  stock: number;
-  unit_price: number;
+  quantity_assigned: number;
+  quantity_sold: number;
+  quantity_returned: number;
+  quantity_current: number;
+  average_unit_price: number;
   current_value: number;
   sold_value: number;
+  returned_value: number;
+  consignment_item_ids: string[];
+  open_consignment_id: string | null;
+};
+
+export type SellerFinancialSummary = {
+  stock_value: number;
+  sold_value: number;
+  returned_value: number;
+  rendido_value: number;
+  pendiente_value: number;
+};
+
+export type SellerRecentSale = {
+  sale_id: string;
+  seller_id: string;
+  seller_name: string;
+  sold_at: string;
+  payment_method: PaymentMethod;
+  total: number;
+  product_names: string[];
+};
+
+export type SellerRecentReconciliation = {
+  reconciliation_id: string;
+  seller_id: string;
+  seller_name: string;
+  created_at: string;
+  type: ReconciliationType;
+  cash_received: number;
+  transfer_received: number;
+  total_received: number;
+};
+
+export type SellerSnapshot = {
+  seller: Profile;
+  open_consignments: Consignment[];
+  stock_lines: SellerStockLine[];
+  financials: SellerFinancialSummary;
+  recent_sales: SellerRecentSale[];
+  recent_reconciliations: SellerRecentReconciliation[];
+  messages: InternalMessage[];
 };

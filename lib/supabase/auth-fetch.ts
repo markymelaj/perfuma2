@@ -13,9 +13,6 @@ export async function authFetch(input: RequestInfo | URL, init: RequestInit = {}
   if (data.session?.access_token) {
     headers.set('Authorization', `Bearer ${data.session.access_token}`);
   }
-  if (data.session?.user?.id) {
-    headers.set('x-user-id', data.session.user.id);
-  }
 
   return fetch(input, {
     ...init,

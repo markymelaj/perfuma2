@@ -6,14 +6,14 @@ import type { AppRole, Profile } from '@/lib/types';
 type ApiAuthSuccess = { profile: Profile; admin: ReturnType<typeof createAdminClient> };
 type ApiAuthFailure = { response: NextResponse };
 
-async function getBearerToken(request: Request) {
+function getBearerToken(request: Request) {
   const authorization = request.headers.get('authorization');
   if (!authorization?.startsWith('Bearer ')) return null;
   return authorization.slice(7).trim();
 }
 
 export async function getApiProfile(request: Request): Promise<ApiAuthSuccess | ApiAuthFailure> {
-  const token = await getBearerToken(request);
+  const token = getBearerToken(request);
   if (!token) {
     return { response: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) };
   }
@@ -32,7 +32,7 @@ export async function getApiProfile(request: Request): Promise<ApiAuthSuccess | 
     .eq('id', user.id)
     .maybeSingle();
 
-  const profile = profileResult.data as Profile | null;
+  const profile = (profileResult.data as Profile | null) ?? null;
 
   if (profileResult.error || !profile) {
     return { response: NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 }) };

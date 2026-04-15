@@ -52,10 +52,6 @@ export async function PATCH(request: Request) {
 
   const { action, userId, isActive, password } = await request.json();
 
-  if (!userId || typeof userId !== 'string') {
-    return NextResponse.json({ error: 'Usuario inválido' }, { status: 400 });
-  }
-
   if (action === 'toggle-status') {
     const target = await auth.admin.from('profiles').select('role').eq('id', userId).maybeSingle();
     const targetRole = (target.data?.role ?? 'seller') as AppRole;

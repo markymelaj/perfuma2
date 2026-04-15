@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
+import { messageSchema } from '@/lib/validators';
 import { requireApiProfile } from '@/lib/auth/api-guards';
 import { isAdminRole } from '@/lib/auth/guards';
-import { messageSchema } from '@/lib/validators';
 import type { Profile } from '@/lib/types';
 
 export async function POST(request: Request) {
@@ -30,7 +30,11 @@ export async function POST(request: Request) {
       .order('created_at', { ascending: true })
       .limit(1)
       .maybeSingle();
-    if (!owner.data) return NextResponse.json({ error: 'No hay dueño activo disponible' }, { status: 400 });
+
+    if (!owner.data) {
+      return NextResponse.json({ error: 'No hay dueño activo disponible' }, { status: 400 });
+    }
+
     ownerId = (owner.data as Profile).id;
   }
 

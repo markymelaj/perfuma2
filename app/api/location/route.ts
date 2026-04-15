@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { locationSchema } from '@/lib/validators';
-import { createClient } from '@/lib/supabase/server';
-import { requireProfile } from '@/lib/auth/guards';
+import { requireApiProfile } from '@/lib/auth/api-guards';
 
 export async function POST(request: Request) {
-  const actor = await requireProfile();
+  const auth = await requireApiProfile(request);
+  if ('response' in auth) return auth.response;
+
   const json = await request.json();
   const parsed = locationSchema.safeParse(json);
 
@@ -12,10 +13,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('location_pings').insert([
+  const { error } = await auth.admin.from('location_pings').insert([
     {
-      user_id: actor.id,
+      user_id: auth.profile.id,
       latitude: parsed.data.latitude,
       longitude: parsed.data.longitude,
       note: parsed.data.note || null,

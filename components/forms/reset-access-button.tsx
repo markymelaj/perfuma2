@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
 
 export function ResetAccessButton({ userId }: { userId: string }) {
@@ -13,13 +14,21 @@ export function ResetAccessButton({ userId }: { userId: string }) {
     if (!password) return;
 
     setLoading(true);
-    await fetch('/api/admin/users', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'reset-password', userId, password }),
-    });
-    setLoading(false);
-    router.refresh();
+    try {
+      const response = await authFetch('/api/admin/users', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'reset-password', userId, password }),
+      });
+      const result = await readJsonSafe(response);
+      if (!response.ok) {
+        throw new Error(String(result.error ?? 'No se pudo resetear la contraseña'));
+      }
+      router.refresh();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'No se pudo resetear la contraseña');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,26 +29,29 @@ export function SendLocationForm() {
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
-        const response = await fetch('/api/location', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-            note,
-          }),
-        });
-        const result = await response.json();
-        setLoading(false);
+        try {
+          const response = await authFetch('/api/location', {
+            method: 'POST',
+            body: JSON.stringify({
+              latitude: position.coords.latitude,
+              longitude: position.coords.longitude,
+              note,
+            }),
+          });
+          const result = await readJsonSafe(response);
 
-        if (!response.ok) {
-          setError(result.error ?? 'No se pudo guardar la ubicación');
-          return;
+          if (!response.ok) {
+            throw new Error(String(result.error ?? 'No se pudo guardar la ubicación'));
+          }
+
+          setSuccess('Ubicación enviada.');
+          event.currentTarget.reset();
+          router.refresh();
+        } catch (err) {
+          setError(err instanceof Error ? err.message : 'No se pudo guardar la ubicación');
+        } finally {
+          setLoading(false);
         }
-
-        setSuccess('Ubicación enviada.');
-        event.currentTarget.reset();
-        router.refresh();
       },
       () => {
         setLoading(false);

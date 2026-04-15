@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { productSchema } from '@/lib/validators';
-import { createClient } from '@/lib/supabase/server';
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireApiAdmin } from '@/lib/auth/api-guards';
 
 export async function POST(request: Request) {
-  await requireAdmin();
+  const auth = await requireApiAdmin(request);
+  if ('response' in auth) return auth.response;
+
   const json = await request.json();
   const parsed = productSchema.safeParse(json);
 
@@ -12,15 +13,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const { error } = await supabase.from('products').insert([
+  const { error } = await auth.admin.from('products').insert([
     {
-      ...parsed.data,
       supplier_id: parsed.data.supplier_id || null,
       sku: parsed.data.sku || null,
+      name: parsed.data.name,
       description: parsed.data.description || null,
+      default_sale_price: parsed.data.default_sale_price,
     },
   ]);
+
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ ok: true });
 }

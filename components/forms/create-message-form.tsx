@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { Profile } from '@/lib/types';
 import { messageSchema } from '@/lib/validators';
+import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select } from '@/components/ui/select';
@@ -34,22 +35,25 @@ export function CreateMessageForm({ sellers }: { sellers?: Profile[] }) {
     }
 
     setLoading(true);
-    const response = await fetch('/api/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(parsed.data),
-    });
-    const result = await response.json();
-    setLoading(false);
+    try {
+      const response = await authFetch('/api/messages', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      const result = await readJsonSafe(response);
 
-    if (!response.ok) {
-      setError(result.error ?? 'No se pudo enviar el mensaje');
-      return;
+      if (!response.ok) {
+        throw new Error(String(result.error ?? 'No se pudo enviar el mensaje'));
+      }
+
+      setSuccess('Mensaje enviado.');
+      event.currentTarget.reset();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo enviar el mensaje');
+    } finally {
+      setLoading(false);
     }
-
-    setSuccess('Mensaje enviado.');
-    event.currentTarget.reset();
-    router.refresh();
   }
 
   return (

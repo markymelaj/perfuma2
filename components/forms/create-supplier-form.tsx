@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { supplierSchema } from '@/lib/validators';
+import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +20,7 @@ export function CreateSupplierForm() {
     event.preventDefault();
     setError(null);
     setSuccess(null);
+
     const formData = new FormData(event.currentTarget);
     const payload = {
       name: String(formData.get('name') ?? ''),
@@ -34,22 +36,25 @@ export function CreateSupplierForm() {
     }
 
     setLoading(true);
-    const response = await fetch('/api/suppliers', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(parsed.data),
-    });
-    const result = await response.json();
-    setLoading(false);
+    try {
+      const response = await authFetch('/api/suppliers', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      const result = await readJsonSafe(response);
 
-    if (!response.ok) {
-      setError(result.error ?? 'No se pudo guardar');
-      return;
+      if (!response.ok) {
+        throw new Error(String(result.error ?? 'No se pudo guardar'));
+      }
+
+      setSuccess('Proveedor creado.');
+      event.currentTarget.reset();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar');
+    } finally {
+      setLoading(false);
     }
-
-    setSuccess('Proveedor creado.');
-    event.currentTarget.reset();
-    router.refresh();
   }
 
   return (

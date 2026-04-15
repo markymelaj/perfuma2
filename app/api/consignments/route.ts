@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { consignmentSchema } from '@/lib/validators';
-import { createClient } from '@/lib/supabase/server';
-import { requireAdmin } from '@/lib/auth/guards';
+import { requireApiAdmin } from '@/lib/auth/api-guards';
 
 export async function POST(request: Request) {
-  const actor = await requireAdmin();
+  const auth = await requireApiAdmin(request);
+  if ('response' in auth) return auth.response;
+
   const json = await request.json();
   const parsed = consignmentSchema.safeParse(json);
 
@@ -12,14 +13,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 });
   }
 
-  const supabase = await createClient();
-  const inserted = await supabase
+  const inserted = await auth.admin
     .from('consignments')
     .insert([
       {
         seller_id: parsed.data.seller_id,
         supplier_id: parsed.data.supplier_id || null,
-        opened_by: actor.id,
+        opened_by: auth.profile.id,
         notes: parsed.data.notes || null,
       },
     ])
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: inserted.error?.message ?? 'No se pudo crear la consignación' }, { status: 400 });
   }
 
-  const item = await supabase.from('consignment_items').insert([
+  const item = await auth.admin.from('consignment_items').insert([
     {
       consignment_id: inserted.data.id,
       product_id: parsed.data.product_id,

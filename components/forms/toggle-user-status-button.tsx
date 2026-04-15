@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
 
 export function ToggleUserStatusButton({ userId, isActive }: { userId: string; isActive: boolean }) {
@@ -10,13 +11,21 @@ export function ToggleUserStatusButton({ userId, isActive }: { userId: string; i
 
   async function handleClick() {
     setLoading(true);
-    await fetch('/api/admin/users', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'toggle-status', userId, isActive: !isActive }),
-    });
-    setLoading(false);
-    router.refresh();
+    try {
+      const response = await authFetch('/api/admin/users', {
+        method: 'PATCH',
+        body: JSON.stringify({ action: 'toggle-status', userId, isActive: !isActive }),
+      });
+      const result = await readJsonSafe(response);
+      if (!response.ok) {
+        throw new Error(String(result.error ?? 'No se pudo actualizar el usuario'));
+      }
+      router.refresh();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'No se pudo actualizar el usuario');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (

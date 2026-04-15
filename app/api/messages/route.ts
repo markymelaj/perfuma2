@@ -1,12 +1,12 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
-import { getCurrentProfile, isAdminRole } from '@/lib/auth/guards';
+import { requireApiProfile } from '@/lib/auth/api-guards';
+import { isAdminRole } from '@/lib/auth/guards';
 import { messageSchema } from '@/lib/validators';
 import type { Profile } from '@/lib/types';
 
 export async function POST(request: Request) {
-  const actor = await getCurrentProfile();
-  if (!actor) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+  const auth = await requireApiProfile(request);
+  if ('response' in auth) return auth.response;
 
   const json = await request.json();
   const parsed = messageSchema.safeParse(json);
@@ -14,16 +14,15 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 });
   }
 
-  const supabase = await createClient();
   let sellerId = parsed.data.seller_id || '';
   let ownerId = '';
 
-  if (isAdminRole(actor.role)) {
+  if (isAdminRole(auth.profile.role)) {
     if (!sellerId) return NextResponse.json({ error: 'Selecciona un vendedor' }, { status: 400 });
-    ownerId = actor.id;
+    ownerId = auth.profile.id;
   } else {
-    sellerId = actor.id;
-    const owner = await supabase
+    sellerId = auth.profile.id;
+    const owner = await auth.admin
       .from('profiles')
       .select('*')
       .in('role', ['owner', 'super_admin'])
@@ -35,11 +34,11 @@ export async function POST(request: Request) {
     ownerId = (owner.data as Profile).id;
   }
 
-  const { error } = await supabase.from('internal_messages').insert([
+  const { error } = await auth.admin.from('internal_messages').insert([
     {
       owner_id: ownerId,
       seller_id: sellerId,
-      sender_id: actor.id,
+      sender_id: auth.profile.id,
       body: parsed.data.body,
     },
   ]);

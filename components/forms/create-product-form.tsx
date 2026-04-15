@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { productSchema } from '@/lib/validators';
 import type { Supplier } from '@/lib/types';
+import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,22 +39,25 @@ export function CreateProductForm({ suppliers }: { suppliers: Supplier[] }) {
     }
 
     setLoading(true);
-    const response = await fetch('/api/products', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(parsed.data),
-    });
-    const result = await response.json();
-    setLoading(false);
+    try {
+      const response = await authFetch('/api/products', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      const result = await readJsonSafe(response);
 
-    if (!response.ok) {
-      setError(result.error ?? 'No se pudo guardar');
-      return;
+      if (!response.ok) {
+        throw new Error(String(result.error ?? 'No se pudo guardar'));
+      }
+
+      setSuccess('Producto creado.');
+      event.currentTarget.reset();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar');
+    } finally {
+      setLoading(false);
     }
-
-    setSuccess('Producto creado.');
-    event.currentTarget.reset();
-    router.refresh();
   }
 
   return (

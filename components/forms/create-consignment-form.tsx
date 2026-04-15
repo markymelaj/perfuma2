@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import type { Product, Profile, Supplier } from '@/lib/types';
 import { consignmentSchema } from '@/lib/validators';
+import { authFetch, readJsonSafe } from '@/lib/supabase/auth-fetch';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -38,22 +39,25 @@ export function CreateConsignmentForm({ sellers, suppliers, products }: { seller
     }
 
     setLoading(true);
-    const response = await fetch('/api/consignments', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(parsed.data),
-    });
-    const result = await response.json();
-    setLoading(false);
+    try {
+      const response = await authFetch('/api/consignments', {
+        method: 'POST',
+        body: JSON.stringify(parsed.data),
+      });
+      const result = await readJsonSafe(response);
 
-    if (!response.ok) {
-      setError(result.error ?? 'No se pudo crear la consignación');
-      return;
+      if (!response.ok) {
+        throw new Error(String(result.error ?? 'No se pudo crear la consignación'));
+      }
+
+      setSuccess('Consignación creada.');
+      event.currentTarget.reset();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo crear la consignación');
+    } finally {
+      setLoading(false);
     }
-
-    setSuccess('Consignación creada.');
-    event.currentTarget.reset();
-    router.refresh();
   }
 
   return (

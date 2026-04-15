@@ -10,20 +10,17 @@ export function DeleteUserButton({ userId, actorId, label }: { userId: string; a
   const [loading, setLoading] = useState(false);
 
   async function handleClick() {
-    const ok = window.confirm('Esto eliminará al usuario y sus datos operativos. ¿Continuar?');
+    const ok = window.confirm('Se eliminará el vendedor y sus datos asociados. Esta acción no se puede deshacer.');
     if (!ok) return;
-
     setLoading(true);
     try {
       const response = await authFetch('/api/admin/users', {
-        method: 'DELETE',
+        method: 'PATCH',
         headers: { 'x-actor-id': actorId },
-        body: JSON.stringify({ userId }),
+        body: JSON.stringify({ action: 'delete-user', userId }),
       });
       const result = await readJsonSafe(response);
-      if (!response.ok) {
-        throw new Error(String(result.error ?? 'No se pudo eliminar el usuario'));
-      }
+      if (!response.ok) throw new Error(String(result.error ?? 'No se pudo eliminar el usuario'));
       router.refresh();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'No se pudo eliminar el usuario');
@@ -32,9 +29,5 @@ export function DeleteUserButton({ userId, actorId, label }: { userId: string; a
     }
   }
 
-  return (
-    <Button disabled={loading} onClick={handleClick} type="button" variant="ghost">
-      {loading ? '...' : label ?? 'Eliminar'}
-    </Button>
-  );
+  return <Button disabled={loading} onClick={handleClick} type="button" variant="ghost">{loading ? '...' : label ?? 'Eliminar'}</Button>;
 }

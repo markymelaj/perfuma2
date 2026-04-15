@@ -12,7 +12,6 @@ export function ResetAccessButton({ userId, actorId }: { userId: string; actorId
   async function handleClick() {
     const password = window.prompt('Nueva contraseña temporal:');
     if (!password) return;
-
     setLoading(true);
     try {
       const response = await authFetch('/api/admin/users', {
@@ -21,9 +20,7 @@ export function ResetAccessButton({ userId, actorId }: { userId: string; actorId
         body: JSON.stringify({ action: 'reset-password', userId, password }),
       });
       const result = await readJsonSafe(response);
-      if (!response.ok) {
-        throw new Error(String(result.error ?? 'No se pudo resetear la contraseña'));
-      }
+      if (!response.ok) throw new Error(String(result.error ?? 'No se pudo resetear la contraseña'));
       router.refresh();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'No se pudo resetear la contraseña');
@@ -32,9 +29,5 @@ export function ResetAccessButton({ userId, actorId }: { userId: string; actorId
     }
   }
 
-  return (
-    <Button disabled={loading} onClick={handleClick} type="button" variant="ghost">
-      {loading ? '...' : 'Reset contraseña'}
-    </Button>
-  );
+  return <Button disabled={loading} onClick={handleClick} type="button" variant="ghost">{loading ? '...' : 'Reset contraseña'}</Button>;
 }

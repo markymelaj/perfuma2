@@ -24,9 +24,11 @@ export function CreateProductForm({ actorId }: { actorId: string }) {
 
     const formData = new FormData(form);
     const payload = {
+      supplier_id: '',
       sku: String(formData.get('sku') ?? ''),
       name: String(formData.get('name') ?? ''),
       description: String(formData.get('description') ?? ''),
+      default_sale_price: '0',
     };
 
     const parsed = productSchema.safeParse(payload);
@@ -43,9 +45,11 @@ export function CreateProductForm({ actorId }: { actorId: string }) {
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
+
       if (!response.ok) {
         throw new Error(String(result.error ?? 'No se pudo guardar'));
       }
+
       setSuccess('Producto creado. El precio se define al cargar stock al vendedor.');
       form.reset();
       router.refresh();
@@ -59,7 +63,7 @@ export function CreateProductForm({ actorId }: { actorId: string }) {
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
       <div className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-2">
+        <div className="space-y-2 md:col-span-2">
           <Label htmlFor="name">Nombre</Label>
           <Input id="name" name="name" required />
         </div>

@@ -11,15 +11,7 @@ import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FormMessage } from '@/components/shared/form-message';
 
-export function CreateMessageForm({
-  actorId,
-  sellers,
-  defaultSellerId,
-}: {
-  actorId: string;
-  sellers?: Profile[];
-  defaultSellerId?: string;
-}) {
+export function CreateMessageForm({ sellers, actorId, defaultSellerId }: { sellers?: Profile[]; actorId: string; defaultSellerId?: string | null }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,9 +43,7 @@ export function CreateMessageForm({
         body: JSON.stringify(parsed.data),
       });
       const result = await readJsonSafe(response);
-      if (!response.ok) {
-        throw new Error(String(result.error ?? 'No se pudo enviar el mensaje'));
-      }
+      if (!response.ok) throw new Error(String(result.error ?? 'No se pudo enviar el mensaje'));
       setSuccess('Mensaje enviado.');
       form.reset();
       router.refresh();
@@ -66,21 +56,8 @@ export function CreateMessageForm({
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      {sellers ? (
-        <div className="space-y-2">
-          <Label htmlFor="seller_id">Vendedor</Label>
-          <Select id="seller_id" name="seller_id" defaultValue={defaultSellerId ?? ''} required>
-            <option value="" disabled>Selecciona</option>
-            {sellers.map((seller) => (
-              <option key={seller.id} value={seller.id}>{seller.display_name ?? seller.email}</option>
-            ))}
-          </Select>
-        </div>
-      ) : null}
-      <div className="space-y-2">
-        <Label htmlFor="body">Mensaje</Label>
-        <Textarea id="body" name="body" required />
-      </div>
+      {sellers ? <div className="space-y-2"><Label htmlFor="seller_id">Vendedor</Label><Select id="seller_id" name="seller_id" defaultValue={defaultSellerId ?? ''} required><option value="" disabled>Selecciona</option>{sellers.map((seller)=><option key={seller.id} value={seller.id}>{seller.display_name ?? seller.email}</option>)}</Select></div> : null}
+      <div className="space-y-2"><Label htmlFor="body">Mensaje</Label><Textarea id="body" name="body" required /></div>
       <FormMessage error={error} success={success} />
       <Button disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar mensaje'}</Button>
     </form>

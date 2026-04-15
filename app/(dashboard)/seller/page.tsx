@@ -13,104 +13,83 @@ export const dynamic = 'force-dynamic';
 
 export default async function SellerPage() {
   const profile = await requireSeller();
-  const { snapshot, metrics } = await getSellerDashboardData(profile.id);
+  const { sellerAccount, metrics } = await getSellerDashboardData(profile.id);
 
   return (
     <div className="space-y-8">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <KpiCard title="Stock actual" value={formatCurrency(metrics.stock_value)} />
-        <KpiCard title="Vendido" value={formatCurrency(metrics.sold_value)} />
-        <KpiCard title="Rendido" value={formatCurrency(metrics.rendido_value)} />
-        <KpiCard title="Pendiente por rendir" value={formatCurrency(metrics.pendiente_value)} />
+        <KpiCard title="Stock valorizado actual" value={formatCurrency(metrics.stockCurrentValue)} />
+        <KpiCard title="Vendido acumulado" value={formatCurrency(metrics.totalSold)} />
+        <KpiCard title="Rendido acumulado" value={formatCurrency(metrics.totalRendido)} />
+        <KpiCard title="Pendiente por rendir" value={formatCurrency(metrics.pendiente)} />
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
         <Card>
-          <h2 className="mb-4 text-xl font-semibold">Registrar venta</h2>
-          <RecordSaleForm actorId={profile.id} snapshot={snapshot} />
+          <h2 className="mb-4 text-2xl font-semibold">Registrar venta</h2>
+          <RecordSaleForm actorId={profile.id} consignmentId={sellerAccount.activeConsignment?.id ?? null} stockLines={sellerAccount.stockLines} />
         </Card>
         <Card>
-          <h2 className="mb-4 text-xl font-semibold">Rendir caja</h2>
-          <CreateReconciliationForm
-            actorId={profile.id}
-            defaultSellerId={profile.id}
-            isSellerView
-            selectedSeller={snapshot}
-            sellers={[profile]}
-          />
+          <h2 className="mb-4 text-2xl font-semibold">Rendir caja</h2>
+          <CreateReconciliationForm actorId={profile.id} consignmentId={sellerAccount.activeConsignment?.id ?? null} summary={sellerAccount.financial} stockLines={sellerAccount.stockLines} />
         </Card>
         <Card>
-          <h2 className="mb-4 text-xl font-semibold">Enviar ubicación</h2>
+          <h2 className="mb-4 text-2xl font-semibold">Enviar ubicación</h2>
           <SendLocationForm actorId={profile.id} />
         </Card>
         <Card>
-          <h2 className="mb-4 text-xl font-semibold">Mensaje al dueño</h2>
+          <h2 className="mb-4 text-2xl font-semibold">Mensaje al dueño</h2>
           <CreateMessageForm actorId={profile.id} />
         </Card>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
         <Card>
-          <h2 className="mb-4 text-xl font-semibold">Mi stock</h2>
+          <h2 className="mb-4 text-2xl font-semibold">Mi stock</h2>
           <DataTable
             headers={['Producto', 'Asignado', 'Vendido', 'Devuelto', 'Stock', 'Valor actual']}
-            rows={
-              snapshot?.stock_lines.length
-                ? snapshot.stock_lines.map((line) => [
-                    line.product_name,
-                    String(line.quantity_assigned),
-                    String(line.quantity_sold),
-                    String(line.quantity_returned),
-                    String(line.quantity_current),
-                    formatCurrency(line.current_value),
-                  ])
-                : [['Sin stock', '-', '-', '-', '-', '-']]
-            }
+            rows={sellerAccount.stockLines.map((line) => [
+              line.product_name,
+              String(line.quantity_assigned),
+              String(line.quantity_sold),
+              String(line.quantity_returned),
+              String(line.quantity_current),
+              formatCurrency(line.current_value),
+            ])}
           />
         </Card>
         <Card>
-          <h2 className="mb-4 text-xl font-semibold">Mensajes</h2>
+          <h2 className="mb-4 text-2xl font-semibold">Mensajes</h2>
           <DataTable
             headers={['Mensaje', 'Fecha']}
-            rows={
-              snapshot?.messages.length
-                ? snapshot.messages.map((row) => [row.body, new Date(row.created_at).toLocaleString('es-CL')])
-                : [['Sin mensajes', '-']]
-            }
+            rows={sellerAccount.messages.map((row) => [row.body, new Date(row.created_at).toLocaleString('es-CL')])}
           />
         </Card>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
         <Card>
-          <h2 className="mb-4 text-xl font-semibold">Ventas recientes</h2>
+          <h2 className="mb-4 text-2xl font-semibold">Ventas recientes</h2>
           <DataTable
-            headers={['Pago', 'Fecha', 'Productos', 'Total']}
-            rows={
-              snapshot?.recent_sales.length
-                ? snapshot.recent_sales.map((row) => [
-                    row.payment_method,
-                    new Date(row.sold_at).toLocaleString('es-CL'),
-                    row.product_names.join(', '),
-                    formatCurrency(row.total),
-                  ])
-                : [['Sin registros', '-', '-', '-']]
-            }
+            headers={['Productos', 'Pago', 'Fecha', 'Total']}
+            rows={sellerAccount.sales.map((row) => [
+              row.product_names.join(', '),
+              row.payment_method,
+              new Date(row.sold_at).toLocaleString('es-CL'),
+              formatCurrency(row.total_value),
+            ])}
           />
         </Card>
         <Card>
-          <h2 className="mb-4 text-xl font-semibold">Rendiciones</h2>
+          <h2 className="mb-4 text-2xl font-semibold">Rendiciones</h2>
           <DataTable
-            headers={['Tipo', 'Fecha', 'Total']}
-            rows={
-              snapshot?.recent_reconciliations.length
-                ? snapshot.recent_reconciliations.map((row) => [
-                    row.type,
-                    new Date(row.created_at).toLocaleString('es-CL'),
-                    formatCurrency(row.total_received),
-                  ])
-                : [['Sin registros', '-', '-']]
-            }
+            headers={['Tipo', 'Fecha', 'Monto', 'Devoluciones']}
+            rows={sellerAccount.reconciliations.map((row) => [
+              row.type,
+              new Date(row.created_at).toLocaleString('es-CL'),
+              formatCurrency(row.total_received),
+              row.return_items.length ? row.return_items.map((item) => `${item.product_name} (${item.quantity})`).join(', ') : 'Sin devolución',
+            ])}
           />
         </Card>
       </section>

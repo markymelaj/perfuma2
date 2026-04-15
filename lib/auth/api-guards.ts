@@ -14,13 +14,8 @@ function getBearerToken(request: Request) {
   return authorization.slice(7).trim();
 }
 
-function getActorHeader(request: Request) {
-  return request.headers.get('x-actor-id')?.trim() || null;
-}
-
 async function createRouteSupabaseClient() {
   const cookieStore = await cookies();
-
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -31,11 +26,9 @@ async function createRouteSupabaseClient() {
         },
         setAll(cookiesToSet) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              cookieStore.set(name, value, options);
-            });
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
           } catch {
-            // no-op
+            // ignore in route handlers
           }
         },
       },
@@ -43,57 +36,58 @@ async function createRouteSupabaseClient() {
   );
 }
 
-async function resolveSessionUserId(request: Request) {
-  const routeClient = await createRouteSupabaseClient();
+async function getProfileById(profileId: string) {
+  const admin = createAdminClient();
+  const profileResult = await admin.from('profiles').select('*').eq('id', profileId).maybeSingle();
+  return {
+    admin,
+    profile: (profileResult.data as Profile | null) ?? null,
+    error: profileResult.error,
+  };
+}
 
+export async function getApiProfile(request: Request): Promise<ApiAuthSuccess | ApiAuthFailure> {
+  const actorId = request.headers.get('x-actor-id');
+  if (actorId) {
+    const actor = await getProfileById(actorId);
+    if (actor.error || !actor.profile) {
+      return { response: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) };
+    }
+    if (!actor.profile.is_active) {
+      return { response: NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 }) };
+    }
+    return { profile: actor.profile, admin: actor.admin };
+  }
+
+  const routeClient = await createRouteSupabaseClient();
   const cookieUserResult = await routeClient.auth.getUser();
   if (!cookieUserResult.error && cookieUserResult.data.user) {
-    return cookieUserResult.data.user.id;
+    const actor = await getProfileById(cookieUserResult.data.user.id);
+    if (actor.error || !actor.profile) {
+      return { response: NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 }) };
+    }
+    if (!actor.profile.is_active) {
+      return { response: NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 }) };
+    }
+    return { profile: actor.profile, admin: actor.admin };
   }
 
   const token = getBearerToken(request);
   if (token) {
     const tokenUserResult = await routeClient.auth.getUser(token);
     if (!tokenUserResult.error && tokenUserResult.data.user) {
-      return tokenUserResult.data.user.id;
+      const actor = await getProfileById(tokenUserResult.data.user.id);
+      if (actor.error || !actor.profile) {
+        return { response: NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 }) };
+      }
+      if (!actor.profile.is_active) {
+        return { response: NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 }) };
+      }
+      return { profile: actor.profile, admin: actor.admin };
     }
   }
 
-  return null;
-}
-
-async function resolveUserId(request: Request): Promise<{ userId: string | null } | { error: NextResponse }> {
-  const sessionUserId = await resolveSessionUserId(request);
-  const actorHeader = getActorHeader(request);
-
-  if (sessionUserId && actorHeader && actorHeader !== sessionUserId) {
-    return { error: NextResponse.json({ error: 'Identidad inválida' }, { status: 403 }) };
-  }
-
-  return { userId: sessionUserId ?? actorHeader ?? null };
-}
-
-export async function getApiProfile(request: Request): Promise<ApiAuthSuccess | ApiAuthFailure> {
-  const resolved = await resolveUserId(request);
-  if ('error' in resolved) return { response: resolved.error as NextResponse };
-
-  if (!resolved.userId) {
-    return { response: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) };
-  }
-
-  const admin = createAdminClient();
-  const profileResult = await admin.from('profiles').select('*').eq('id', resolved.userId).maybeSingle();
-  const profile = (profileResult.data as Profile | null) ?? null;
-
-  if (profileResult.error || !profile) {
-    return { response: NextResponse.json({ error: 'Perfil no encontrado' }, { status: 404 }) };
-  }
-
-  if (!profile.is_active) {
-    return { response: NextResponse.json({ error: 'Usuario inactivo' }, { status: 403 }) };
-  }
-
-  return { profile, admin };
+  return { response: NextResponse.json({ error: 'No autorizado' }, { status: 401 }) };
 }
 
 export async function requireApiProfile(request: Request): Promise<ApiAuthSuccess | ApiAuthFailure> {
@@ -103,10 +97,8 @@ export async function requireApiProfile(request: Request): Promise<ApiAuthSucces
 export async function requireApiAdmin(request: Request): Promise<ApiAuthSuccess | ApiAuthFailure> {
   const result = await getApiProfile(request);
   if ('response' in result) return result;
-
   if (!isAdminRole(result.profile.role as AppRole)) {
     return { response: NextResponse.json({ error: 'No autorizado' }, { status: 403 }) };
   }
-
   return result;
 }

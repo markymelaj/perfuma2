@@ -34,16 +34,10 @@ export function SendLocationForm({ actorId }: { actorId: string }) {
           const response = await authFetch('/api/location', {
             method: 'POST',
             headers: { 'x-actor-id': actorId },
-            body: JSON.stringify({
-              latitude: position.coords.latitude,
-              longitude: position.coords.longitude,
-              note,
-            }),
+            body: JSON.stringify({ latitude: position.coords.latitude, longitude: position.coords.longitude, note }),
           });
           const result = await readJsonSafe(response);
-          if (!response.ok) {
-            throw new Error(String(result.error ?? 'No se pudo guardar la ubicación'));
-          }
+          if (!response.ok) throw new Error(String(result.error ?? 'No se pudo guardar la ubicación'));
           setSuccess('Ubicación enviada.');
           form.reset();
           router.refresh();
@@ -57,15 +51,13 @@ export function SendLocationForm({ actorId }: { actorId: string }) {
         setLoading(false);
         setError('No se pudo obtener tu ubicación.');
       },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
     );
   }
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      <div className="space-y-2">
-        <Label htmlFor="note">Nota</Label>
-        <Textarea id="note" name="note" placeholder="Punto de venta, referencia, etc." />
-      </div>
+      <div className="space-y-2"><Label htmlFor="note">Nota</Label><Textarea id="note" name="note" placeholder="Punto de venta, referencia, etc." /></div>
       <FormMessage error={error} success={success} />
       <Button disabled={loading} type="submit">{loading ? 'Enviando...' : 'Enviar ubicación actual'}</Button>
     </form>

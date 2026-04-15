@@ -62,6 +62,50 @@ export type ConsignmentItem = {
   products?: { name: string | null } | null;
 };
 
+export type Sale = {
+  id: string;
+  consignment_id: string;
+  seller_id: string;
+  payment_method: PaymentMethod;
+  sold_at: string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type SaleItem = {
+  id: string;
+  sale_id: string;
+  consignment_item_id: string;
+  quantity: number;
+  unit_sale_price: number | string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Reconciliation = {
+  id: string;
+  consignment_id: string;
+  seller_id: string;
+  type: ReconciliationType;
+  cash_received: number | string;
+  transfer_received: number | string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ReconciliationItem = {
+  id: string;
+  reconciliation_id: string;
+  consignment_item_id: string;
+  quantity_returned: number;
+  created_at: string;
+  updated_at: string;
+};
+
 export type InternalMessage = {
   id: string;
   owner_id: string;
@@ -73,55 +117,22 @@ export type InternalMessage = {
 };
 
 export type SellerStockLine = {
+  consignment_item_id: string;
   product_id: string;
   product_name: string;
   quantity_assigned: number;
   quantity_sold: number;
   quantity_returned: number;
   quantity_current: number;
-  average_unit_price: number;
+  unit_sale_price: number;
   current_value: number;
   sold_value: number;
-  returned_value: number;
-  consignment_item_ids: string[];
-  open_consignment_id: string | null;
 };
 
 export type SellerFinancialSummary = {
-  stock_value: number;
-  sold_value: number;
-  returned_value: number;
-  rendido_value: number;
-  pendiente_value: number;
-};
-
-export type SellerRecentSale = {
-  sale_id: string;
-  seller_id: string;
-  seller_name: string;
-  sold_at: string;
-  payment_method: PaymentMethod;
-  total: number;
-  product_names: string[];
-};
-
-export type SellerRecentReconciliation = {
-  reconciliation_id: string;
-  seller_id: string;
-  seller_name: string;
-  created_at: string;
-  type: ReconciliationType;
-  cash_received: number;
-  transfer_received: number;
-  total_received: number;
-};
-
-export type SellerSnapshot = {
-  seller: Profile;
-  open_consignments: Consignment[];
-  stock_lines: SellerStockLine[];
-  financials: SellerFinancialSummary;
-  recent_sales: SellerRecentSale[];
-  recent_reconciliations: SellerRecentReconciliation[];
-  messages: InternalMessage[];
+  soldTotal: number;
+  renderedTotal: number;
+  pendingTotal: number;
+  stockCurrentValue: number;
+  returnedValue: number;
 };

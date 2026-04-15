@@ -15,11 +15,11 @@ export async function POST(request: Request) {
 
   const { error } = await auth.admin.from('products').insert([
     {
+      supplier_id: null,
       sku: parsed.data.sku || null,
       name: parsed.data.name,
       description: parsed.data.description || null,
       default_sale_price: 0,
-      supplier_id: null,
     },
   ]);
 

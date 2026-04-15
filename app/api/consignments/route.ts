@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { consignmentSchema } from '@/lib/validators';
 import { requireApiAdmin } from '@/lib/auth/api-guards';
-import { toNumber } from '@/lib/utils';
 
 export async function POST(request: Request) {
   const auth = await requireApiAdmin(request);
@@ -14,24 +13,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? 'Datos inválidos' }, { status: 400 });
   }
 
-  let consignmentId: string | null = null;
-
-  const openConsignment = await auth.admin
+  const activeConsignmentRes = await auth.admin
     .from('consignments')
     .select('id')
     .eq('seller_id', parsed.data.seller_id)
-    .eq('status', 'open')
+    .in('status', ['open', 'partially_reconciled'])
     .order('opened_at', { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (openConsignment.error) {
-    return NextResponse.json({ error: openConsignment.error.message }, { status: 400 });
-  }
+  let consignmentId = activeConsignmentRes.data?.id ?? '';
 
-  if (openConsignment.data?.id) {
-    consignmentId = openConsignment.data.id;
-  } else {
+  if (!consignmentId) {
     const inserted = await auth.admin
       .from('consignments')
       .insert([
@@ -45,7 +38,7 @@ export async function POST(request: Request) {
       .single();
 
     if (inserted.error || !inserted.data) {
-      return NextResponse.json({ error: inserted.error?.message ?? 'No se pudo crear la cuenta de stock' }, { status: 400 });
+      return NextResponse.json({ error: inserted.error?.message ?? 'No se pudo abrir la cuenta de stock' }, { status: 400 });
     }
 
     consignmentId = inserted.data.id;
@@ -58,45 +51,39 @@ export async function POST(request: Request) {
     .eq('product_id', parsed.data.product_id)
     .maybeSingle();
 
-  if (existingItem.error) {
-    return NextResponse.json({ error: existingItem.error.message }, { status: 400 });
-  }
-
-  if (existingItem.data?.id) {
-    const currentQty = toNumber(existingItem.data.quantity_assigned);
-    const currentPrice = toNumber(existingItem.data.unit_sale_price);
-    const incomingQty = parsed.data.quantity_assigned;
-    const incomingPrice = parsed.data.unit_sale_price;
-    const nextQty = currentQty + incomingQty;
-    const weightedPrice = nextQty > 0 ? ((currentQty * currentPrice) + (incomingQty * incomingPrice)) / nextQty : incomingPrice;
+  if (existingItem.data) {
+    const currentQty = Number(existingItem.data.quantity_assigned) || 0;
+    const currentPrice = Number(existingItem.data.unit_sale_price) || 0;
+    const newQty = parsed.data.quantity_assigned;
+    const newPrice = parsed.data.unit_sale_price;
+    const mergedQty = currentQty + newQty;
+    const mergedPrice = mergedQty > 0 ? ((currentQty * currentPrice) + (newQty * newPrice)) / mergedQty : newPrice;
 
     const updated = await auth.admin
       .from('consignment_items')
       .update({
-        quantity_assigned: nextQty,
-        unit_sale_price: Number(weightedPrice.toFixed(2)),
+        quantity_assigned: mergedQty,
+        unit_sale_price: mergedPrice,
       })
       .eq('id', existingItem.data.id);
 
     if (updated.error) {
       return NextResponse.json({ error: updated.error.message }, { status: 400 });
     }
+  } else {
+    const item = await auth.admin.from('consignment_items').insert([
+      {
+        consignment_id: consignmentId,
+        product_id: parsed.data.product_id,
+        quantity_assigned: parsed.data.quantity_assigned,
+        unit_sale_price: parsed.data.unit_sale_price,
+      },
+    ]);
 
-    return NextResponse.json({ ok: true, consignmentId, consignmentItemId: existingItem.data.id, accumulated: true });
+    if (item.error) {
+      return NextResponse.json({ error: item.error.message }, { status: 400 });
+    }
   }
 
-  const item = await auth.admin.from('consignment_items').insert([
-    {
-      consignment_id: consignmentId,
-      product_id: parsed.data.product_id,
-      quantity_assigned: parsed.data.quantity_assigned,
-      unit_sale_price: parsed.data.unit_sale_price,
-    },
-  ]);
-
-  if (item.error) {
-    return NextResponse.json({ error: item.error.message }, { status: 400 });
-  }
-
-  return NextResponse.json({ ok: true, consignmentId, accumulated: false });
+  return NextResponse.json({ ok: true, consignmentId });
 }

@@ -18,9 +18,7 @@ export function ToggleUserStatusButton({ userId, isActive, actorId }: { userId: 
         body: JSON.stringify({ action: 'toggle-status', userId, isActive: !isActive }),
       });
       const result = await readJsonSafe(response);
-      if (!response.ok) {
-        throw new Error(String(result.error ?? 'No se pudo actualizar el usuario'));
-      }
+      if (!response.ok) throw new Error(String(result.error ?? 'No se pudo actualizar el usuario'));
       router.refresh();
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'No se pudo actualizar el usuario');
@@ -29,9 +27,5 @@ export function ToggleUserStatusButton({ userId, isActive, actorId }: { userId: 
     }
   }
 
-  return (
-    <Button disabled={loading} onClick={handleClick} type="button" variant="secondary">
-      {loading ? '...' : isActive ? 'Desactivar' : 'Activar'}
-    </Button>
-  );
+  return <Button disabled={loading} onClick={handleClick} type="button" variant="secondary">{loading ? '...' : isActive ? 'Desactivar' : 'Activar'}</Button>;
 }

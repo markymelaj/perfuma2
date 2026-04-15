@@ -6,405 +6,226 @@ import type {
   InternalMessage,
   Product,
   Profile,
-  SellerRecentReconciliation,
-  SellerRecentSale,
-  SellerSnapshot,
+  Reconciliation,
+  ReconciliationItem,
+  Sale,
+  SaleItem,
+  SellerFinancialSummary,
   SellerStockLine,
 } from '@/lib/types';
 
-type SaleRow = {
-  id: string;
-  seller_id: string;
-  payment_method: 'cash' | 'transfer' | 'mixed';
-  sold_at: string;
-  consignment_id: string;
-};
-
-type SaleItemRow = {
-  id: string;
-  sale_id: string;
-  consignment_item_id: string;
-  quantity: number | string;
-  unit_sale_price: number | string;
-};
-
-type ReconciliationRow = {
-  id: string;
-  seller_id: string;
-  type: 'partial' | 'total';
-  cash_received: number | string;
-  transfer_received: number | string;
-  created_at: string;
-  consignment_id: string;
-};
-
-type ReconciliationItemRow = {
-  id: string;
-  reconciliation_id: string;
-  consignment_item_id: string;
-  quantity_returned: number | string;
-};
-
-type SellerLineAccumulator = {
-  product_id: string;
-  product_name: string;
-  quantity_assigned: number;
-  quantity_sold: number;
-  quantity_returned: number;
-  assigned_value: number;
-  sold_value: number;
-  returned_value: number;
-  consignment_item_ids: Set<string>;
-  open_consignment_ids: Set<string>;
-};
-
-function ensureLine(map: Map<string, SellerLineAccumulator>, productId: string, productName: string) {
-  if (!map.has(productId)) {
-    map.set(productId, {
-      product_id: productId,
-      product_name: productName,
-      quantity_assigned: 0,
-      quantity_sold: 0,
-      quantity_returned: 0,
-      assigned_value: 0,
-      sold_value: 0,
-      returned_value: 0,
-      consignment_item_ids: new Set<string>(),
-      open_consignment_ids: new Set<string>(),
-    });
-  }
-
-  return map.get(productId)!;
-}
-
-function finalizeLines(map: Map<string, SellerLineAccumulator>): SellerStockLine[] {
-  return Array.from(map.values())
-    .map((line) => {
-      const quantityCurrent = Math.max(line.quantity_assigned - line.quantity_sold - line.quantity_returned, 0);
-      const averageUnitPrice = line.quantity_assigned > 0 ? line.assigned_value / line.quantity_assigned : 0;
-      return {
-        product_id: line.product_id,
-        product_name: line.product_name,
-        quantity_assigned: line.quantity_assigned,
-        quantity_sold: line.quantity_sold,
-        quantity_returned: line.quantity_returned,
-        quantity_current: quantityCurrent,
-        average_unit_price: averageUnitPrice,
-        current_value: quantityCurrent * averageUnitPrice,
-        sold_value: line.sold_value,
-        returned_value: line.returned_value,
-        consignment_item_ids: Array.from(line.consignment_item_ids),
-        open_consignment_id: Array.from(line.open_consignment_ids)[0] ?? null,
-      };
-    })
-    .filter((line) => line.quantity_assigned > 0 || line.quantity_sold > 0 || line.quantity_returned > 0)
-    .sort((a, b) => a.product_name.localeCompare(b.product_name, 'es'));
-}
-
-function buildSellerSnapshots(params: {
-  profiles: Profile[];
-  products: Product[];
-  consignments: Consignment[];
-  items: ConsignmentItem[];
-  sales: SaleRow[];
-  saleItems: SaleItemRow[];
-  reconciliations: ReconciliationRow[];
-  reconciliationItems: ReconciliationItemRow[];
+type SellerAccountData = {
+  seller: Profile | null;
+  activeConsignment: Consignment | null;
+  stockLines: SellerStockLine[];
+  financial: SellerFinancialSummary;
+  sales: Array<Sale & { total_value: number; product_names: string[] }>;
+  reconciliations: Array<Reconciliation & { total_received: number; return_items: Array<{ product_name: string; quantity: number }> }>;
   messages: InternalMessage[];
-}) {
-  const { profiles, products, consignments, items, sales, saleItems, reconciliations, reconciliationItems, messages } = params;
+};
 
-  const sellers = profiles.filter((profile) => profile.role === 'seller');
-  const productNameById = new Map(products.map((product) => [product.id, product.name]));
-  const consignmentById = new Map(consignments.map((consignment) => [consignment.id, consignment]));
-  const itemById = new Map(items.map((item) => [item.id, item]));
-  const sellerLineMaps = new Map<string, Map<string, SellerLineAccumulator>>();
-  const sellerOpenConsignmentIds = new Map<string, Set<string>>();
+function buildStockLines(items: ConsignmentItem[], saleItems: SaleItem[], reconciliationItems: ReconciliationItem[]) {
+  return items.map((item) => {
+    const soldQty = saleItems
+      .filter((line) => line.consignment_item_id === item.id)
+      .reduce((sum, line) => sum + toNumber(line.quantity), 0);
+    const returnedQty = reconciliationItems
+      .filter((line) => line.consignment_item_id === item.id)
+      .reduce((sum, line) => sum + toNumber(line.quantity_returned), 0);
+    const currentQty = Math.max(0, toNumber(item.quantity_assigned) - soldQty - returnedQty);
+    const price = toNumber(item.unit_sale_price);
+    return {
+      consignment_item_id: item.id,
+      product_id: item.product_id,
+      product_name: item.products?.name ?? item.product_id,
+      quantity_assigned: toNumber(item.quantity_assigned),
+      quantity_sold: soldQty,
+      quantity_returned: returnedQty,
+      quantity_current: currentQty,
+      unit_sale_price: price,
+      current_value: currentQty * price,
+      sold_value: soldQty * price,
+    } satisfies SellerStockLine;
+  });
+}
 
-  for (const seller of sellers) {
-    sellerLineMaps.set(seller.id, new Map());
-    const latestOpen = consignments
-      .filter((consignment) => consignment.seller_id === seller.id && consignment.status !== 'closed' && consignment.status !== 'cancelled')
-      .sort((a, b) => b.opened_at.localeCompare(a.opened_at))[0];
-    sellerOpenConsignmentIds.set(seller.id, new Set(latestOpen ? [latestOpen.id] : []));
+function buildFinancial(stockLines: SellerStockLine[], reconciliations: Reconciliation[]) {
+  const soldTotal = stockLines.reduce((sum, line) => sum + line.sold_value, 0);
+  const renderedTotal = reconciliations.reduce(
+    (sum, row) => sum + toNumber(row.cash_received) + toNumber(row.transfer_received),
+    0,
+  );
+  const stockCurrentValue = stockLines.reduce((sum, line) => sum + line.current_value, 0);
+  const returnedValue = stockLines.reduce(
+    (sum, line) => sum + line.quantity_returned * line.unit_sale_price,
+    0,
+  );
+  return {
+    soldTotal,
+    renderedTotal,
+    pendingTotal: soldTotal - renderedTotal,
+    stockCurrentValue,
+    returnedValue,
+  } satisfies SellerFinancialSummary;
+}
+
+async function getSellerAccount(sellerId: string | null): Promise<SellerAccountData> {
+  const supabase = await createClient();
+  if (!sellerId) {
+    return {
+      seller: null,
+      activeConsignment: null,
+      stockLines: [],
+      financial: { soldTotal: 0, renderedTotal: 0, pendingTotal: 0, stockCurrentValue: 0, returnedValue: 0 },
+      sales: [],
+      reconciliations: [],
+      messages: [],
+    };
   }
 
-  for (const item of items) {
-    const consignment = consignmentById.get(item.consignment_id);
-    if (!consignment || consignment.status === 'closed' || consignment.status === 'cancelled') continue;
-    if (!(sellerOpenConsignmentIds.get(consignment.seller_id)?.has(consignment.id))) continue;
+  const sellerRes = await supabase.from('profiles').select('*').eq('id', sellerId).maybeSingle();
+  const seller = (sellerRes.data ?? null) as Profile | null;
 
-    const sellerMap = sellerLineMaps.get(consignment.seller_id) ?? new Map<string, SellerLineAccumulator>();
-    sellerLineMaps.set(consignment.seller_id, sellerMap);
+  const activeConsignmentRes = await supabase
+    .from('consignments')
+    .select('*')
+    .eq('seller_id', sellerId)
+    .in('status', ['open', 'partially_reconciled'])
+    .order('opened_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-    const productName = item.products?.name ?? productNameById.get(item.product_id) ?? item.product_id;
-    const line = ensureLine(sellerMap, item.product_id, productName);
-    const qtyAssigned = toNumber(item.quantity_assigned);
-    const unitPrice = toNumber(item.unit_sale_price);
+  const activeConsignment = (activeConsignmentRes.data ?? null) as Consignment | null;
 
-    line.quantity_assigned += qtyAssigned;
-    line.assigned_value += qtyAssigned * unitPrice;
-    line.consignment_item_ids.add(item.id);
-    line.open_consignment_ids.add(consignment.id);
-  }
-
-  for (const saleItem of saleItems) {
-    const item = itemById.get(saleItem.consignment_item_id);
-    if (!item) continue;
-    const consignment = consignmentById.get(item.consignment_id);
-    if (!consignment || consignment.status === 'closed' || consignment.status === 'cancelled') continue;
-    if (!(sellerOpenConsignmentIds.get(consignment.seller_id)?.has(consignment.id))) continue;
-    const sellerMap = sellerLineMaps.get(consignment.seller_id);
-    if (!sellerMap) continue;
-
-    const productName = item.products?.name ?? productNameById.get(item.product_id) ?? item.product_id;
-    const line = ensureLine(sellerMap, item.product_id, productName);
-    const qty = toNumber(saleItem.quantity);
-    const unitPrice = toNumber(saleItem.unit_sale_price);
-    line.quantity_sold += qty;
-    line.sold_value += qty * unitPrice;
-  }
-
-  const reconciliationById = new Map(reconciliations.map((row) => [row.id, row]));
-
-  for (const reconciliationItem of reconciliationItems) {
-    const item = itemById.get(reconciliationItem.consignment_item_id);
-    if (!item) continue;
-    const consignment = consignmentById.get(item.consignment_id);
-    if (!consignment || consignment.status === 'closed' || consignment.status === 'cancelled') continue;
-    if (!(sellerOpenConsignmentIds.get(consignment.seller_id)?.has(consignment.id))) continue;
-    const sellerMap = sellerLineMaps.get(consignment.seller_id);
-    if (!sellerMap) continue;
-
-    const productName = item.products?.name ?? productNameById.get(item.product_id) ?? item.product_id;
-    const line = ensureLine(sellerMap, item.product_id, productName);
-    const qty = toNumber(reconciliationItem.quantity_returned);
-    const unitPrice = toNumber(item.unit_sale_price);
-    line.quantity_returned += qty;
-    line.returned_value += qty * unitPrice;
-  }
-
-  const saleTotals = new Map<string, number>();
-  const saleProducts = new Map<string, Set<string>>();
-  for (const saleItem of saleItems) {
-    const item = itemById.get(saleItem.consignment_item_id);
-    if (!item) continue;
-    const productName = item.products?.name ?? productNameById.get(item.product_id) ?? item.product_id;
-    saleTotals.set(saleItem.sale_id, (saleTotals.get(saleItem.sale_id) ?? 0) + toNumber(saleItem.quantity) * toNumber(saleItem.unit_sale_price));
-    if (!saleProducts.has(saleItem.sale_id)) saleProducts.set(saleItem.sale_id, new Set());
-    saleProducts.get(saleItem.sale_id)!.add(productName);
-  }
-
-  const sellerById = new Map(sellers.map((seller) => [seller.id, seller]));
-
-  const snapshots = sellers.map((seller) => {
-    const stockLines = finalizeLines(sellerLineMaps.get(seller.id) ?? new Map());
-    const recentSales: SellerRecentSale[] = sales
-      .filter((sale) => sale.seller_id === seller.id)
-      .map((sale) => ({
-        sale_id: sale.id,
-        seller_id: seller.id,
-        seller_name: seller.display_name ?? seller.email ?? 'Sin nombre',
-        sold_at: sale.sold_at,
-        payment_method: sale.payment_method,
-        total: saleTotals.get(sale.id) ?? 0,
-        product_names: Array.from(saleProducts.get(sale.id) ?? []),
-      }))
-      .sort((a, b) => b.sold_at.localeCompare(a.sold_at));
-
-    const openConsignmentIds = sellerOpenConsignmentIds.get(seller.id) ?? new Set<string>();
-
-    const recentReconciliations: SellerRecentReconciliation[] = reconciliations
-      .filter((row) => row.seller_id === seller.id)
-      .map((row) => {
-        const cash = toNumber(row.cash_received);
-        const transfer = toNumber(row.transfer_received);
-        return {
-          reconciliation_id: row.id,
-          seller_id: seller.id,
-          seller_name: seller.display_name ?? seller.email ?? 'Sin nombre',
-          created_at: row.created_at,
-          type: row.type,
-          cash_received: cash,
-          transfer_received: transfer,
-          total_received: cash + transfer,
-        };
-      })
-      .sort((a, b) => b.created_at.localeCompare(a.created_at));
-
-    const rendidoValue = reconciliations
-      .filter((row) => row.seller_id === seller.id && openConsignmentIds.has(row.consignment_id))
-      .reduce((sum, row) => sum + toNumber(row.cash_received) + toNumber(row.transfer_received), 0);
-    const stockValue = stockLines.reduce((sum, row) => sum + row.current_value, 0);
-    const soldValue = stockLines.reduce((sum, row) => sum + row.sold_value, 0);
-    const returnedValue = stockLines.reduce((sum, row) => sum + row.returned_value, 0);
+  if (!activeConsignment) {
+    const messagesRes = await supabase
+      .from('internal_messages')
+      .select('*')
+      .eq('seller_id', sellerId)
+      .order('created_at', { ascending: false })
+      .limit(20);
 
     return {
       seller,
-      open_consignments: consignments.filter((row) => row.seller_id === seller.id && row.status !== 'closed'),
-      stock_lines: stockLines,
-      financials: {
-        stock_value: stockValue,
-        sold_value: soldValue,
-        returned_value: returnedValue,
-        rendido_value: rendidoValue,
-        pendiente_value: soldValue - rendidoValue,
-      },
-      recent_sales: recentSales.slice(0, 20),
-      recent_reconciliations: recentReconciliations.slice(0, 20),
-      messages: messages.filter((row) => row.seller_id === seller.id).sort((a, b) => b.created_at.localeCompare(a.created_at)),
-    } satisfies SellerSnapshot;
+      activeConsignment: null,
+      stockLines: [],
+      financial: { soldTotal: 0, renderedTotal: 0, pendingTotal: 0, stockCurrentValue: 0, returnedValue: 0 },
+      sales: [],
+      reconciliations: [],
+      messages: (messagesRes.data ?? []) as InternalMessage[],
+    };
+  }
+
+  const [itemsRes, salesRes, saleItemsRes, reconciliationsRes, reconciliationItemsRes, messagesRes] = await Promise.all([
+    supabase.from('consignment_items').select('*, products(name)').eq('consignment_id', activeConsignment.id).order('created_at', { ascending: true }),
+    supabase.from('sales').select('*').eq('consignment_id', activeConsignment.id).order('sold_at', { ascending: false }),
+    supabase.from('sales_items').select('*').in('sale_id', ((await supabase.from('sales').select('id').eq('consignment_id', activeConsignment.id)).data ?? []).map((row) => row.id)),
+    supabase.from('reconciliations').select('*').eq('consignment_id', activeConsignment.id).order('created_at', { ascending: false }),
+    supabase.from('reconciliation_items').select('*').in('reconciliation_id', ((await supabase.from('reconciliations').select('id').eq('consignment_id', activeConsignment.id)).data ?? []).map((row) => row.id)),
+    supabase.from('internal_messages').select('*').eq('seller_id', sellerId).order('created_at', { ascending: false }).limit(20),
+  ]);
+
+  const items = (itemsRes.data ?? []) as ConsignmentItem[];
+  const sales = (salesRes.data ?? []) as Sale[];
+  const saleItems = (saleItemsRes.data ?? []) as SaleItem[];
+  const reconciliations = (reconciliationsRes.data ?? []) as Reconciliation[];
+  const reconciliationItems = (reconciliationItemsRes.data ?? []) as ReconciliationItem[];
+  const messages = (messagesRes.data ?? []) as InternalMessage[];
+
+  const stockLines = buildStockLines(items, saleItems, reconciliationItems);
+  const financial = buildFinancial(stockLines, reconciliations);
+
+  const saleMap = new Map(stockLines.map((line) => [line.consignment_item_id, line.product_name]));
+  const salesDetailed = sales.map((sale) => {
+    const lines = saleItems.filter((line) => line.sale_id === sale.id);
+    return {
+      ...sale,
+      total_value: lines.reduce((sum, line) => sum + toNumber(line.quantity) * toNumber(line.unit_sale_price), 0),
+      product_names: Array.from(new Set(lines.map((line) => saleMap.get(line.consignment_item_id) ?? line.consignment_item_id))),
+    };
   });
 
-  const globalRecentSales = sales
-    .map((sale) => {
-      const seller = sellerById.get(sale.seller_id);
-      return {
-        sale_id: sale.id,
-        seller_id: sale.seller_id,
-        seller_name: seller?.display_name ?? seller?.email ?? 'Sin nombre',
-        sold_at: sale.sold_at,
-        payment_method: sale.payment_method,
-        total: saleTotals.get(sale.id) ?? 0,
-        product_names: Array.from(saleProducts.get(sale.id) ?? []),
-      } satisfies SellerRecentSale;
-    })
-    .sort((a, b) => b.sold_at.localeCompare(a.sold_at));
+  const returnMap = new Map(stockLines.map((line) => [line.consignment_item_id, line.product_name]));
+  const reconciliationsDetailed = reconciliations.map((row) => ({
+    ...row,
+    total_received: toNumber(row.cash_received) + toNumber(row.transfer_received),
+    return_items: reconciliationItems
+      .filter((line) => line.reconciliation_id === row.id && toNumber(line.quantity_returned) > 0)
+      .map((line) => ({ product_name: returnMap.get(line.consignment_item_id) ?? line.consignment_item_id, quantity: toNumber(line.quantity_returned) })),
+  }));
 
-  const globalRecentReconciliations = reconciliations
-    .map((row) => {
-      const seller = sellerById.get(row.seller_id);
-      const cash = toNumber(row.cash_received);
-      const transfer = toNumber(row.transfer_received);
-      return {
-        reconciliation_id: row.id,
-        seller_id: row.seller_id,
-        seller_name: seller?.display_name ?? seller?.email ?? 'Sin nombre',
-        created_at: row.created_at,
-        type: row.type,
-        cash_received: cash,
-        transfer_received: transfer,
-        total_received: cash + transfer,
-      } satisfies SellerRecentReconciliation;
-    })
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
-
-  return { snapshots, globalRecentSales, globalRecentReconciliations };
+  return {
+    seller,
+    activeConsignment,
+    stockLines,
+    financial,
+    sales: salesDetailed,
+    reconciliations: reconciliationsDetailed,
+    messages,
+  };
 }
 
 export async function getAdminDashboardData(selectedSellerId?: string) {
   const supabase = await createClient();
-
-  const [profilesRes, productsRes, consignmentsRes, itemsRes, salesRes, saleItemsRes, reconciliationsRes, reconciliationItemsRes, messagesRes] = await Promise.all([
+  const [profilesRes, productsRes, salesRes] = await Promise.all([
     supabase.from('profiles').select('*').order('created_at', { ascending: false }),
     supabase.from('products').select('*').order('created_at', { ascending: false }),
-    supabase.from('consignments').select('*').order('created_at', { ascending: false }),
-    supabase.from('consignment_items').select('*, products(name)').order('created_at', { ascending: false }),
-    supabase.from('sales').select('id, seller_id, payment_method, sold_at, consignment_id').order('sold_at', { ascending: false }),
-    supabase.from('sales_items').select('id, sale_id, consignment_item_id, quantity, unit_sale_price'),
-    supabase.from('reconciliations').select('id, seller_id, type, cash_received, transfer_received, created_at, consignment_id').order('created_at', { ascending: false }),
-    supabase.from('reconciliation_items').select('id, reconciliation_id, consignment_item_id, quantity_returned'),
-    supabase.from('internal_messages').select('*').order('created_at', { ascending: false }).limit(50),
+    supabase.from('sales').select('id, seller_id, payment_method, sold_at').order('sold_at', { ascending: false }).limit(20),
   ]);
 
   const profiles = (profilesRes.data ?? []) as Profile[];
   const products = (productsRes.data ?? []) as Product[];
-  const consignments = (consignmentsRes.data ?? []) as Consignment[];
-  const items = (itemsRes.data ?? []) as ConsignmentItem[];
-  const sales = (salesRes.data ?? []) as SaleRow[];
-  const saleItems = (saleItemsRes.data ?? []) as SaleItemRow[];
-  const reconciliations = (reconciliationsRes.data ?? []) as ReconciliationRow[];
-  const reconciliationItems = (reconciliationItemsRes.data ?? []) as ReconciliationItemRow[];
-  const messages = (messagesRes.data ?? []) as InternalMessage[];
-
-  const { snapshots, globalRecentSales, globalRecentReconciliations } = buildSellerSnapshots({
-    profiles,
-    products,
-    consignments,
-    items,
-    sales,
-    saleItems,
-    reconciliations,
-    reconciliationItems,
-    messages,
-  });
-
   const sellers = profiles.filter((profile) => profile.role === 'seller');
-  const selectedSeller = snapshots.find((snapshot) => snapshot.seller.id === selectedSellerId) ?? snapshots[0] ?? null;
+  const selectedSeller = selectedSellerId && sellers.some((row) => row.id === selectedSellerId)
+    ? selectedSellerId
+    : sellers.find((row) => row.is_active)?.id ?? sellers[0]?.id ?? null;
 
-  const totalStockValue = snapshots.reduce((sum, snapshot) => sum + snapshot.financials.stock_value, 0);
-  const totalSold = snapshots.reduce((sum, snapshot) => sum + snapshot.financials.sold_value, 0);
-  const totalRendido = snapshots.reduce((sum, snapshot) => sum + snapshot.financials.rendido_value, 0);
+  const sellerAccount = await getSellerAccount(selectedSeller);
+
+  const saleIds = (salesRes.data ?? []).map((row) => row.id);
+  const saleItemsRes = saleIds.length
+    ? await supabase.from('sales_items').select('*').in('sale_id', saleIds)
+    : { data: [] as SaleItem[] };
+
+  const recentSales = ((salesRes.data ?? []) as Sale[]).map((sale) => {
+    const seller = sellers.find((row) => row.id === sale.seller_id);
+    const lines = ((saleItemsRes.data ?? []) as SaleItem[]).filter((line) => line.sale_id === sale.id);
+    return {
+      id: sale.id,
+      seller_name: seller?.display_name ?? seller?.email ?? sale.seller_id,
+      payment_method: sale.payment_method,
+      sold_at: sale.sold_at,
+      total: lines.reduce((sum, line) => sum + toNumber(line.quantity) * toNumber(line.unit_sale_price), 0),
+    };
+  });
 
   return {
     profiles,
     sellers,
     products,
-    selectedSeller,
-    recentSales: globalRecentSales.slice(0, 20),
-    recentReconciliations: globalRecentReconciliations.slice(0, 20),
+    selectedSellerId: selectedSeller,
+    sellerAccount,
+    recentSales,
     metrics: {
-      sellers: sellers.filter((profile) => profile.is_active).length,
-      products: products.filter((product) => product.is_active).length,
-      stockValue: totalStockValue,
-      totalSold,
-      totalRendido,
-      pendiente: totalSold - totalRendido,
+      sellers: sellers.length,
+      products: products.length,
+      pending: sellerAccount.financial.pendingTotal,
+      stockCurrentValue: sellerAccount.financial.stockCurrentValue,
     },
   };
 }
 
 export async function getSellerDashboardData(profileId: string) {
-  const supabase = await createClient();
-
-  const [profilesRes, productsRes, consignmentsRes, itemsRes, salesRes, saleItemsRes, reconciliationsRes, reconciliationItemsRes, messagesRes] = await Promise.all([
-    supabase.from('profiles').select('*').eq('id', profileId),
-    supabase.from('products').select('*').order('created_at', { ascending: false }),
-    supabase.from('consignments').select('*').eq('seller_id', profileId).order('created_at', { ascending: false }),
-    supabase.from('consignment_items').select('*, products(name)').order('created_at', { ascending: false }),
-    supabase.from('sales').select('id, seller_id, payment_method, sold_at, consignment_id').eq('seller_id', profileId).order('sold_at', { ascending: false }),
-    supabase.from('sales_items').select('id, sale_id, consignment_item_id, quantity, unit_sale_price'),
-    supabase.from('reconciliations').select('id, seller_id, type, cash_received, transfer_received, created_at, consignment_id').eq('seller_id', profileId).order('created_at', { ascending: false }),
-    supabase.from('reconciliation_items').select('id, reconciliation_id, consignment_item_id, quantity_returned'),
-    supabase.from('internal_messages').select('*').eq('seller_id', profileId).order('created_at', { ascending: false }).limit(50),
-  ]);
-
-  const profiles = (profilesRes.data ?? []) as Profile[];
-  const products = (productsRes.data ?? []) as Product[];
-  const consignments = (consignmentsRes.data ?? []) as Consignment[];
-  const items = (itemsRes.data ?? []) as ConsignmentItem[];
-  const sellerConsignmentIds = new Set(consignments.map((row) => row.id));
-  const filteredItems = items.filter((item) => sellerConsignmentIds.has(item.consignment_id));
-  const sales = (salesRes.data ?? []) as SaleRow[];
-  const saleIds = new Set(sales.map((row) => row.id));
-  const saleItems = ((saleItemsRes.data ?? []) as SaleItemRow[]).filter((item) => saleIds.has(item.sale_id));
-  const reconciliations = (reconciliationsRes.data ?? []) as ReconciliationRow[];
-  const reconciliationIds = new Set(reconciliations.map((row) => row.id));
-  const reconciliationItems = ((reconciliationItemsRes.data ?? []) as ReconciliationItemRow[]).filter((item) => reconciliationIds.has(item.reconciliation_id));
-  const messages = (messagesRes.data ?? []) as InternalMessage[];
-
-  const { snapshots } = buildSellerSnapshots({
-    profiles,
-    products,
-    consignments,
-    items: filteredItems,
-    sales,
-    saleItems,
-    reconciliations,
-    reconciliationItems,
-    messages,
-  });
-
-  const snapshot = snapshots[0] ?? null;
+  const sellerAccount = await getSellerAccount(profileId);
 
   return {
-    snapshot,
-    metrics: snapshot?.financials ?? {
-      stock_value: 0,
-      sold_value: 0,
-      returned_value: 0,
-      rendido_value: 0,
-      pendiente_value: 0,
+    sellerAccount,
+    metrics: {
+      stockLines: sellerAccount.stockLines.length,
+      totalSold: sellerAccount.financial.soldTotal,
+      totalRendido: sellerAccount.financial.renderedTotal,
+      pendiente: sellerAccount.financial.pendingTotal,
+      stockCurrentValue: sellerAccount.financial.stockCurrentValue,
     },
   };
 }

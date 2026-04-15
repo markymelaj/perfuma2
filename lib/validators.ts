@@ -13,7 +13,6 @@ export const createUserSchema = z.object({
   role: z.enum(['owner', 'seller']),
 });
 
-
 export const supplierSchema = z.object({
   name: z.string().min(2),
   contact_name: z.string().optional().or(z.literal('')),
@@ -22,13 +21,16 @@ export const supplierSchema = z.object({
 });
 
 export const productSchema = z.object({
+  supplier_id: z.string().uuid().optional().or(z.literal('')),
   sku: z.string().optional().or(z.literal('')),
   name: z.string().min(2),
   description: z.string().optional().or(z.literal('')),
+  default_sale_price: z.coerce.number().min(0).optional().default(0),
 });
 
 export const consignmentSchema = z.object({
   seller_id: z.string().uuid(),
+  supplier_id: z.string().uuid().optional().or(z.literal('')),
   product_id: z.string().uuid(),
   quantity_assigned: z.coerce.number().int().positive(),
   unit_sale_price: z.coerce.number().min(0),
@@ -36,6 +38,7 @@ export const consignmentSchema = z.object({
 });
 
 export const saleSchema = z.object({
+  consignment_id: z.string().uuid(),
   consignment_item_id: z.string().uuid(),
   quantity: z.coerce.number().int().positive(),
   payment_method: z.enum(['cash', 'transfer', 'mixed']),
@@ -43,7 +46,7 @@ export const saleSchema = z.object({
 });
 
 export const reconciliationSchema = z.object({
-  seller_id: z.string().uuid(),
+  consignment_id: z.string().uuid(),
   type: z.enum(['partial', 'total']),
   cash_received: z.coerce.number().min(0),
   transfer_received: z.coerce.number().min(0),
